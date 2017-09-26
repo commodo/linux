@@ -33,8 +33,8 @@ struct tgec_mdio_controller {
 } __packed;
 
 #define MDIO_STAT_ENC		BIT(6)
-#define MDIO_STAT_CLKDIV(x)	(((x>>1) & 0xff) << 8)
-#define MDIO_STAT_BSY		BIT(0)
+#define MDIO_STAT_CLKDIV(x)	(((x>>1) & 0xff) << 7)
+#define MDIO_STAT_BSY		BIT(31)
 #define MDIO_STAT_RD_ER		BIT(1)
 #define MDIO_CTL_DEV_ADDR(x) 	(x & 0x1f)
 #define MDIO_CTL_PORT_ADDR(x)	((x & 0x1f) << 5)
@@ -44,7 +44,6 @@ struct tgec_mdio_controller {
 #define MDIO_CTL_READ		BIT(15)
 
 #define MDIO_DATA(x)		(x & 0xffff)
-#define MDIO_DATA_BSY		BIT(31)
 
 struct mdio_fsl_priv {
 	struct	tgec_mdio_controller __iomem *mdio_base;
