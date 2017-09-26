@@ -13,6 +13,7 @@
 
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/phy.h>
@@ -119,6 +120,37 @@ static int xgmac_wait_until_done(struct device *dev,
 	return 0;
 }
 
+static int xgmac_switch_clause(struct device *dev,
+				struct tgec_mdio_controller __iomem *regs,
+				int regnum,
+				bool endian,
+				uint16_t *dev_addr)
+{
+	uint32_t mdio_stat;
+	int ret;
+
+	ret = xgmac_wait_until_free(dev, regs, endian);
+	if (ret)
+		return ret;
+
+	mdio_stat = xgmac_read32(&regs->mdio_stat, endian);
+	if (regnum & MII_ADDR_C45) {
+		/* Clause 45 (ie 10G) */
+		*dev_addr = (regnum >> 16) & 0x1f;
+		mdio_stat |= MDIO_STAT_ENC;
+	} else {
+		/* Clause 22 (ie 1G) */
+		*dev_addr = regnum & 0x1f;
+		mdio_stat &= ~MDIO_STAT_ENC;
+	}
+
+	xgmac_write32(mdio_stat, &regs->mdio_stat, endian);
+	/* Docs say we should sleep 50 MDC */
+	usleep_range(50, 100);
+
+	return xgmac_wait_until_free(dev, regs, endian);
+}
+
 /*
  * Write value to the PHY for this device to the register at regnum,waiting
  * until the write is done before it returns.  All PHY configuration has to be
@@ -129,28 +161,11 @@ static int xgmac_mdio_write(struct mii_bus *bus, int phy_id, int regnum, u16 val
 	struct mdio_fsl_priv *priv = (struct mdio_fsl_priv *)bus->priv;
 	struct tgec_mdio_controller __iomem *regs = priv->mdio_base;
 	uint16_t dev_addr;
-	u32 mdio_ctl, mdio_stat;
+	u32 mdio_ctl;
 	int ret;
 	bool endian = priv->is_little_endian;
 
-	ret = xgmac_wait_until_free(&bus->dev, regs, endian);
-	if (ret)
-		return ret;
-
-	mdio_stat = xgmac_read32(&regs->mdio_stat, endian);
-	if (regnum & MII_ADDR_C45) {
-		/* Clause 45 (ie 10G) */
-		dev_addr = (regnum >> 16) & 0x1f;
-		mdio_stat |= MDIO_STAT_ENC;
-	} else {
-		/* Clause 22 (ie 1G) */
-		dev_addr = regnum & 0x1f;
-		mdio_stat &= ~MDIO_STAT_ENC;
-	}
-
-	xgmac_write32(mdio_stat, &regs->mdio_stat, endian);
-
-	ret = xgmac_wait_until_free(&bus->dev, regs, endian);
+	ret = xgmac_switch_clause(&bus->dev, regs, regnum, endian, &dev_addr);
 	if (ret)
 		return ret;
 
@@ -187,28 +202,12 @@ static int xgmac_mdio_read(struct mii_bus *bus, int phy_id, int regnum)
 	struct mdio_fsl_priv *priv = (struct mdio_fsl_priv *)bus->priv;
 	struct tgec_mdio_controller __iomem *regs = priv->mdio_base;
 	uint16_t dev_addr;
-	uint32_t mdio_stat;
 	uint32_t mdio_ctl;
 	uint16_t value;
 	int ret;
 	bool endian = priv->is_little_endian;
 
-	ret = xgmac_wait_until_free(&bus->dev, regs, endian);
-	if (ret)
-		return ret;
-
-	mdio_stat = xgmac_read32(&regs->mdio_stat, endian);
-	if (regnum & MII_ADDR_C45) {
-		dev_addr = (regnum >> 16) & 0x1f;
-		mdio_stat |= MDIO_STAT_ENC;
-	} else {
-		dev_addr = regnum & 0x1f;
-		mdio_stat &= ~MDIO_STAT_ENC;
-	}
-
-	xgmac_write32(mdio_stat, &regs->mdio_stat, endian);
-
-	ret = xgmac_wait_until_free(&bus->dev, regs, endian);
+	ret = xgmac_switch_clause(&bus->dev, regs, regnum, endian, &dev_addr);
 	if (ret)
 		return ret;
 
