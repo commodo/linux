@@ -219,6 +219,7 @@ static int xgmac_mdio_read(struct mii_bus *bus, int phy_id, int regnum)
 	/* Set the register address */
 	if (regnum & MII_ADDR_C45) {
 		xgmac_write32(regnum & 0xffff, &regs->mdio_addr, endian);
+		mdio_ctl |= MDIO_CTL_POST_INC;
 
 		ret = xgmac_wait_until_free(&bus->dev, regs, endian);
 		if (ret)
