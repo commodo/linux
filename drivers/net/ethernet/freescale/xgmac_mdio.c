@@ -133,6 +133,10 @@ static int xgmac_mdio_write(struct mii_bus *bus, int phy_id, int regnum, u16 val
 	int ret;
 	bool endian = priv->is_little_endian;
 
+	ret = xgmac_wait_until_free(&bus->dev, regs, endian);
+	if (ret)
+		return ret;
+
 	mdio_stat = xgmac_read32(&regs->mdio_stat, endian);
 	if (regnum & MII_ADDR_C45) {
 		/* Clause 45 (ie 10G) */
@@ -188,6 +192,10 @@ static int xgmac_mdio_read(struct mii_bus *bus, int phy_id, int regnum)
 	uint16_t value;
 	int ret;
 	bool endian = priv->is_little_endian;
+
+	ret = xgmac_wait_until_free(&bus->dev, regs, endian);
+	if (ret)
+		return ret;
 
 	mdio_stat = xgmac_read32(&regs->mdio_stat, endian);
 	if (regnum & MII_ADDR_C45) {
