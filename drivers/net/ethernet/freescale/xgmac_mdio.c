@@ -95,31 +95,6 @@ static int xgmac_wait_until_free(struct device *dev,
 	return 0;
 }
 
-/*
- * Wait till the MDIO read or write operation is complete
- */
-static int xgmac_wait_until_done(struct device *dev,
-				 struct tgec_mdio_controller __iomem *regs,
-				 bool is_little_endian)
-{
-	unsigned int timeout;
-
-	/* Wait till the MDIO write is complete */
-	timeout = TIMEOUT;
-	while ((xgmac_read32(&regs->mdio_stat, is_little_endian) &
-		MDIO_STAT_BSY) && timeout) {
-		cpu_relax();
-		timeout--;
-	}
-
-	if (!timeout) {
-		dev_err(dev, "timeout waiting for operation to complete\n");
-		return -ETIMEDOUT;
-	}
-
-	return 0;
-}
-
 static int xgmac_switch_clause(struct device *dev,
 				struct tgec_mdio_controller __iomem *regs,
 				int regnum,
@@ -185,7 +160,7 @@ static int xgmac_mdio_write(struct mii_bus *bus, int phy_id, int regnum, u16 val
 	/* Write the value to the register */
 	xgmac_write32(MDIO_DATA(value), &regs->mdio_data, endian);
 
-	ret = xgmac_wait_until_done(&bus->dev, regs, endian);
+	ret = xgmac_wait_until_free(&bus->dev, regs, endian);
 	if (ret)
 		return ret;
 
@@ -228,7 +203,7 @@ static int xgmac_mdio_read(struct mii_bus *bus, int phy_id, int regnum)
 	/* Initiate the read */
 	xgmac_write32(mdio_ctl | MDIO_CTL_READ, &regs->mdio_ctl, endian);
 
-	ret = xgmac_wait_until_done(&bus->dev, regs, endian);
+	ret = xgmac_wait_until_free(&bus->dev, regs, endian);
 	if (ret)
 		return ret;
 
