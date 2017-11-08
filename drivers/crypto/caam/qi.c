@@ -163,9 +163,7 @@ static void caam_fq_ern_cb(struct qman_portal *qm, struct qman_fq *fq,
 	drv_req->cbk(drv_req, -EIO);
 }
 
-static struct qman_fq *create_caam_req_fq(struct device *qidev,
-					  struct qman_fq *rsp_fq,
-					  dma_addr_t hwdesc,
+static struct qman_fq *create_caam_req_fq(struct caam_drv_ctx *drv_ctx,
 					  int fq_sched_flag)
 {
 	int ret;
@@ -182,7 +180,7 @@ static struct qman_fq *create_caam_req_fq(struct device *qidev,
 	ret = qman_create_fq(0, QMAN_FQ_FLAG_DYNAMIC_FQID |
 				QMAN_FQ_FLAG_TO_DCPORTAL, req_fq);
 	if (ret) {
-		dev_err(qidev, "Failed to create session req FQ\n");
+		dev_err(drv_ctx->qidev, "Failed to create session req FQ\n");
 		goto create_req_fq_fail;
 	}
 
@@ -192,13 +190,13 @@ static struct qman_fq *create_caam_req_fq(struct device *qidev,
 				   QM_INITFQ_WE_CONTEXTA | QM_INITFQ_WE_CGID);
 	opts.fqd.fq_ctrl = cpu_to_be16(QM_FQCTRL_CPCSTASH | QM_FQCTRL_CGE);
 	qm_fqd_set_destwq(&opts.fqd, qm_channel_caam, 2);
-	opts.fqd.context_b = cpu_to_be32(qman_fq_fqid(rsp_fq));
-	qm_fqd_context_a_set64(&opts.fqd, hwdesc);
+	opts.fqd.context_b = cpu_to_be32(qman_fq_fqid(drv_ctx->rsp_fq));
+	qm_fqd_context_a_set64(&opts.fqd, drv_ctx->context_a);
 	opts.fqd.cgid = qipriv.cgr.cgrid;
 
 	ret = qman_init_fq(req_fq, fq_sched_flag, &opts);
 	if (ret) {
-		dev_err(qidev, "Failed to init session req FQ\n");
+		dev_err(drv_ctx->qidev, "Failed to init session req FQ\n");
 		goto init_req_fq_fail;
 	}
 
@@ -323,8 +321,7 @@ int caam_drv_ctx_update(struct caam_drv_ctx *drv_ctx, u32 *sh_desc)
 	old_fq = drv_ctx->req_fq;
 
 	/* Create a new req FQ in parked state */
-	new_fq = create_caam_req_fq(drv_ctx->qidev, drv_ctx->rsp_fq,
-				    drv_ctx->context_a, 0);
+	new_fq = create_caam_req_fq(drv_ctx, 0);
 	if (unlikely(IS_ERR_OR_NULL(new_fq))) {
 		dev_err(qidev, "FQ allocation for shdesc update failed\n");
 		return PTR_ERR(new_fq);
@@ -431,12 +428,13 @@ struct caam_drv_ctx *caam_drv_ctx_init(struct device *qidev,
 		put_cpu_var(last_cpu);
 	}
 	drv_ctx->cpu = *cpu;
+	drv_ctx->qidev = qidev;
 
 	/* Find response FQ hooked with this CPU */
 	drv_ctx->rsp_fq = per_cpu(pcpu_qipriv.rsp_fq, drv_ctx->cpu);
 
 	/* Attach request FQ */
-	drv_ctx->req_fq = create_caam_req_fq(qidev, drv_ctx->rsp_fq, hwdesc,
+	drv_ctx->req_fq = create_caam_req_fq(drv_ctx,
 					     QMAN_INITFQ_FLAG_SCHED);
 	if (unlikely(IS_ERR_OR_NULL(drv_ctx->req_fq))) {
 		dev_err(qidev, "create_caam_req_fq failed\n");
@@ -445,7 +443,6 @@ struct caam_drv_ctx *caam_drv_ctx_init(struct device *qidev,
 		return ERR_PTR(-ENOMEM);
 	}
 
-	drv_ctx->qidev = qidev;
 	return drv_ctx;
 }
 EXPORT_SYMBOL(caam_drv_ctx_init);
