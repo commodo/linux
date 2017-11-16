@@ -53,7 +53,6 @@ struct caam_qi_pcpu_priv {
 } ____cacheline_aligned;
 
 static DEFINE_PER_CPU(struct caam_qi_pcpu_priv, pcpu_qipriv);
-static DEFINE_PER_CPU(int, last_cpu);
 
 /*
  * caam_qi_priv - CAAM QI backend private params
@@ -200,8 +199,8 @@ static struct qman_fq *create_caam_req_fq(struct caam_drv_ctx *drv_ctx,
 		goto init_req_fq_fail;
 	}
 
-	dev_info(qidev, "Allocated request FQ %u for CPU %u\n", req_fq->fqid,
-		 smp_processor_id());
+	dev_info(drv_ctx->qidev, "Allocated request FQ %u for CPU %u\n", req_fq->fqid,
+		drv_ctx->cpu);
 	return req_fq;
 
 init_req_fq_fail:
@@ -304,6 +303,25 @@ static int empty_caam_fq(struct qman_fq *fq)
 	return 0;
 }
 
+/* logic adapted from pcrypt's pcrypt_do_parallel() function */
+static void caam_qi_select_cpu(int *cpu)
+{
+	const cpumask_t *cpus = qman_affine_cpus();
+	int pcpu, i;
+	static int cpu_index;
+
+	rcu_read_lock_bh();
+	cpu_index = (cpu_index + 1) % cpumask_weight(cpus);
+
+	pcpu = cpumask_first(cpus);
+	for (i = 0; i < cpu_index; i++)
+		pcpu = cpumask_next(pcpu, cpus);
+
+	*cpu = pcpu;
+
+	rcu_read_unlock_bh();
+}
+
 int caam_drv_ctx_update(struct caam_drv_ctx *drv_ctx, u32 *sh_desc)
 {
 	int ret;
@@ -386,7 +404,6 @@ struct caam_drv_ctx *caam_drv_ctx_init(struct device *qidev,
 	u32 num_words;
 	dma_addr_t hwdesc;
 	struct caam_drv_ctx *drv_ctx;
-	const cpumask_t *cpus = qman_affine_cpus();
 
 	num_words = desc_len(sh_desc);
 	if (num_words > MAX_SDLEN) {
@@ -416,17 +433,9 @@ struct caam_drv_ctx *caam_drv_ctx_init(struct device *qidev,
 	}
 	drv_ctx->context_a = hwdesc;
 
-	/* If given CPU does not own the portal, choose another one that does */
-	if (!cpumask_test_cpu(*cpu, cpus)) {
-		int *pcpu = &get_cpu_var(last_cpu);
+	/* we should be under spin lock here, so we should be good for switching the CPU  */
+	caam_qi_select_cpu(cpu);
 
-		*pcpu = cpumask_next(*pcpu, cpus);
-		if (*pcpu >= nr_cpu_ids)
-			*pcpu = cpumask_first(cpus);
-		*cpu = *pcpu;
-
-		put_cpu_var(last_cpu);
-	}
 	drv_ctx->cpu = *cpu;
 	drv_ctx->qidev = qidev;
 
