@@ -58,4 +58,11 @@ static inline struct jesd204_dev_top *jesd204_dev_top_dev(
 	return container_of(jdev, struct jesd204_dev_top, jdev);
 }
 
+static inline bool of_dev_is_jesd204_dev(struct device *dev)
+{
+	if (!dev || !dev->of_node)
+		return false;
+	return of_property_read_bool(dev->of_node, "jesd204-device");
+}
+
 #endif /* _JESD204_PRIV_H_ */
