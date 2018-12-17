@@ -12,6 +12,7 @@
 #include <linux/of_device.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
+#include <linux/jesd204/jesd204.h>
 
 #include "axi_adxcvr.h"
 #include "xilinx_transceiver.h"
@@ -538,6 +539,9 @@ static const char *adxcvr_gt_names[] = {
 	[XILINX_XCVR_TYPE_US_GTY4] = "GTY4",
 };
 
+static const struct jesd204_dev_data adxcvr_jesd204_init_data = {
+};
+
 static int adxcvr_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
@@ -663,6 +667,12 @@ static int adxcvr_probe(struct platform_device *pdev)
 		return ret;
 
 	device_create_file(st->dev, &dev_attr_reg_access);
+
+	st->jdev = devm_jesd204_dev_register(&pdev->dev, &adxcvr_jesd204_init_data);
+	if (IS_ERR(st->jdev)) {
+		ret = PTR_ERR(st->jdev);
+		goto disable_unprepare;
+	}
 
 	dev_info(&pdev->dev, "AXI-ADXCVR-%s (%d.%.2d.%c) using %s at 0x%08llX mapped to 0x%p. Number of lanes: %d.",
 		st->tx_enable ? "TX" : "RX",
