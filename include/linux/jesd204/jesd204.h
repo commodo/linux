@@ -12,6 +12,14 @@
 
 struct jesd204_dev;
 
+enum jesd204_state_change_result {
+	JESD204_STATE_CHANGE_ERROR = -1,
+	JESD204_STATE_CHANGE_STARTED = 0,
+	JESD204_STATE_CHANGE_DONE,
+};
+
+typedef int (*jesd204_cb)(struct jesd204_dev *jdev);
+
 /**
  * struct jesd204_dev_ops - JESD204 device operations
  */
