@@ -17,6 +17,34 @@ struct jesd204_dev;
 struct jesd204_dev_top;
 
 /**
+ * struct jesd204_dev_list - Entry for a JESD204 device in a list
+ * @list		list entry for a device to keep a list of links
+ * @jdev		pointer to JESD204 device for this list entry
+ */
+struct jesd204_dev_list {
+	struct list_head		list;
+	struct jesd204_dev		*jdev;
+};
+
+/**
+ * struct jesd204_dev_con_out - Output connection of a JESD204 device
+ * @list		list entry for a device to keep a list of connections
+ * @owner		pointer to JESD204 device to which this connection
+ *			belongs to
+ * @dests		list of JESD204 devices this connection is connected
+ *			as input
+ * @of			device-tree reference and arguments for this connection
+ */
+struct jesd204_dev_con_out {
+	struct list_head		list;
+	struct jesd204_dev		*owner;
+	struct jesd204_dev_top		*jdev_top;
+	struct list_head		dests;
+	unsigned int			dests_count;
+	struct of_phandle_args		of;
+};
+
+/**
  * struct jesd204_dev - JESD204 device
  * @list		list entry for the framework to keep a list of devices
  * @is_top		true if this device is a top device in a topology of
@@ -26,6 +54,10 @@ struct jesd204_dev_top;
  * @ops			JESD204 operations specified via function pointers
  * @np			reference in the device-tree for this JESD204 device
  * @ref			ref count for this JESD204 device
+ * @inputs		array of pointers to output connections from other
+ *			devices
+ * @outputs		list of output connections that take input from this
+ *			device
  */
 struct jesd204_dev {
 	struct list_head		list;
@@ -33,9 +65,14 @@ struct jesd204_dev {
 	bool				is_top;
 
 	struct device			*dev;
-	struct jesd204_dev_ops		*ops;
+	const struct jesd204_dev_ops	*ops;
 	struct device_node		*np;
 	struct kref			ref;
+
+	struct jesd204_dev_con_out	**inputs;
+	unsigned int			inputs_count;
+	struct list_head		outputs;
+	unsigned int			outputs_count;
 };
 
 /**
