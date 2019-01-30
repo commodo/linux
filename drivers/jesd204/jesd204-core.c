@@ -38,6 +38,8 @@ static const char *jesd204_state_str(enum jesd204_dev_state state)
 		return "uninitialized";
 	case JESD204_STATE_INITIALIZED:
 		return "initialized";
+	case JESD204_STATE_PROBED:
+		return "probed";
 	default:
 		return "<unknown>";
 	}
@@ -543,6 +545,20 @@ unlock:
 	return ret;
 }
 
+static int jesd204_dev_probed_cb(struct jesd204_dev *jdev,
+				 struct jesd204_dev_con_out *con,
+				 void *data)
+{
+	if (jdev->dev)
+		return JESD204_STATE_CHANGE_DONE;
+	return JESD204_STATE_CHANGE_STARTED;
+}
+
+static int jesd204_dev_probe_done(struct jesd204_dev *jdev)
+{
+	return 0;
+}
+
 struct jesd204_dev *jesd204_dev_register(struct device *dev,
 					 const struct jesd204_dev_data *init)
 {
@@ -563,16 +579,26 @@ struct jesd204_dev *jesd204_dev_register(struct device *dev,
 	if (!jdev) {
 		dev_err(dev, "Device has no configuration node\n");
 		ret = -ENODEV;
-		goto err;
+		goto err_unlock;
 	}
 
 	jdev->ops = init->ops;
 	jdev->dev = get_device(dev);
 
+	ret = jesd204_dev_run_state_change(jdev,
+					   JESD204_STATE_INITIALIZED,
+					   JESD204_STATE_PROBED,
+					   jesd204_dev_probed_cb, NULL,
+					   jesd204_dev_probe_done);
+	if (ret)
+		goto err_put_device;
+
 	mutex_unlock(&jesd204_device_list_lock);
 
 	return jdev;
-err:
+err_put_device:
+	put_device(dev);
+err_unlock:
 	mutex_unlock(&jesd204_device_list_lock);
 
 	return ERR_PTR(ret);

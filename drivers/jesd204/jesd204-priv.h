@@ -20,6 +20,7 @@ enum jesd204_dev_state {
 	JESD204_STATE_ERROR = -1,
 	JESD204_STATE_UNINIT = 0,
 	JESD204_STATE_INITIALIZED,
+	JESD204_STATE_PROBED,
 };
 
 typedef int (*jesd204_cb_priv)(struct jesd204_dev *jdev, void *data); 
