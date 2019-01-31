@@ -1,0 +1,10 @@
+Analog Devices ADIN1200/ADIN1300 PHY bindings
+
+Required properties:
+	- reg - The ID number for the phy, usually a small integer
+
+Example:
+
+	ethernet-phy@0 {
+		reg = <0>;
+	};
