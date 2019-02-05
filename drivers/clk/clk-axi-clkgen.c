@@ -8,6 +8,7 @@
 
 #include <linux/platform_device.h>
 #include <linux/clk-provider.h>
+#include <linux/fpga/adi-axi-common.h>
 #include <linux/slab.h>
 #include <linux/io.h>
 #include <linux/of.h>
@@ -238,6 +239,50 @@ static void axi_clkgen_read(struct axi_clkgen *axi_clkgen,
 	unsigned int reg, unsigned int *val)
 {
 	*val = readl(axi_clkgen->base + reg);
+}
+
+static void axi_clkgen_setup_ranges(struct axi_clkgen *axi_clkgen)
+{
+	struct axi_clkgen_limits *limits = &axi_clkgen->limits;
+	unsigned int reg_value;
+	unsigned int tech, family, speed_grade, voltage;
+
+	axi_clkgen_read(axi_clkgen, ADI_AXI_REG_FPGA_INFO, &reg_value);
+	tech = ADI_AXI_INFO_FPGA_TECH(reg_value);
+	family = ADI_AXI_INFO_FPGA_FAMILY(reg_value);
+	speed_grade = ADI_AXI_INFO_FPGA_SPEED_GRADE(reg_value);
+
+	axi_clkgen_read(axi_clkgen, ADI_AXI_REG_FPGA_VOLTAGE, &reg_value);
+	voltage = ADI_AXI_INFO_FPGA_VOLTAGE(reg_value);
+
+	switch (speed_grade) {
+	case ADI_AXI_FPGA_SPEED_GRADE_XILINX_1 ... ADI_AXI_FPGA_SPEED_GRADE_XILINX_1LV:
+		limits->fvco_max = 1200000;
+		limits->fpfd_max = 450000;
+		break;
+	case ADI_AXI_FPGA_SPEED_GRADE_XILINX_2 ... ADI_AXI_FPGA_SPEED_GRADE_XILINX_2LV:
+		limits->fvco_max = 1440000;
+		limits->fpfd_max = 500000;
+		if ((family == ADI_AXI_FPGA_FAMILY_XILINX_KINTEX) |
+		    (family == ADI_AXI_FPGA_FAMILY_XILINX_ARTIX)) {
+			if (voltage < 950) {
+				limits->fvco_max = 1200000;
+				limits->fpfd_max = 450000;
+			}
+		}
+		break;
+	case ADI_AXI_FPGA_SPEED_GRADE_XILINX_3:
+		limits->fvco_max = 1600000;
+		limits->fpfd_max = 550000;
+		break;
+	default:
+		break;
+	};
+
+	if (tech == ADI_AXI_FPGA_TECH_XILINX_ULTRASCALE_PLUS) {
+		limits->fvco_max = 1600000;
+		limits->fvco_min = 800000;
+	}
 }
 
 static int axi_clkgen_wait_non_busy(struct axi_clkgen *axi_clkgen)
@@ -510,7 +555,7 @@ static int axi_clkgen_probe(struct platform_device *pdev)
 	struct clk_init_data init;
 	const char *parent_names[2];
 	const char *clk_name;
-	unsigned int i;
+	unsigned int i, ver;
 	int ret;
 
 	dflt_limits = device_get_match_data(&pdev->dev);
@@ -536,6 +581,11 @@ static int axi_clkgen_probe(struct platform_device *pdev)
 	}
 
 	memcpy(&axi_clkgen->limits, dflt_limits, sizeof(axi_clkgen->limits));
+
+	axi_clkgen_read(axi_clkgen, ADI_AXI_REG_VERSION, &ver);
+
+	if (ADI_AXI_PCORE_VER_MAJOR(ver) > 0x04)
+		axi_clkgen_setup_ranges(axi_clkgen);
 
 	clk_name = pdev->dev.of_node->name;
 	of_property_read_string(pdev->dev.of_node, "clock-output-names",
