@@ -1,0 +1,21 @@
+/dts-v1/;
+
+/include/ "zynq-zc706.dtsi"
+/include/ "zynq-zc706-adv7511.dtsi"
+
+&gem1 {
+	status = "okay";
+	phy-mode = "mii";
+	phy-handle = <&ethernet_gem1_phy0>;
+
+	mdio {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ethernet_gem1_phy0: ethernet-phy@0 {
+			phy-mode-internal = "rmii";
+			reg = <0>;
+		};
+	};
+};
+
