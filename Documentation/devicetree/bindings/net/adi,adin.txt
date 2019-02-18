@@ -3,8 +3,16 @@ Analog Devices ADIN1200/ADIN1300 PHY bindings
 Required properties:
 	- reg - The ID number for the phy, usually a small integer
 
+Optional properties:
+	- compatible: Compatible list, may contain "ethernet-phy-ieee802.3-c45"
+		in which case Clause 45 will be used to access device
+		management registers. If unspecified, Clause 22 will be used.
+		Use this only when MDIO supports Clause 45 access, but there is
+		no other way to determine this.
+
 Example:
 
 	ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c45";
 		reg = <0>;
 	};
