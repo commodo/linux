@@ -1,0 +1,21 @@
+/dts-v1/;
+
+/include/ "zynq-zc706.dtsi"
+/include/ "zynq-zc706-adv7511.dtsi"
+
+&gem1 {
+	status = "okay";
+	phy-mode = "mii";
+	phy-handle = <&ethernet_gem1_phy0>;
+	/**
+	  * Override compatible string to configure a MAC that works
+	  * at 100 Mbit. Default mode for this MAC is Gbit. But the
+	  * FPGA design is limited to 100 Mbit and MII.
+	  */
+	compatible = "cdns,macb";
+
+	ethernet_gem1_phy0: ethernet-phy@0 {
+		reg = <0>;
+	};
+};
+
