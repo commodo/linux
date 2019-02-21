@@ -13,10 +13,28 @@ Optional properties:
 		is a PHY converter in-between the MAC & PHY.
 		Valid values are: "rgmii", "rgmii-id", "rgmii-txid", "rgmii-rxid",
 		"rmii", "mii"
+	- adi,rx-internal-delay: RGMII RX Clock Delay
+		used only when PHY operates in RGMII mode
+		(phy-mode is "rgmii-id", "rgmii-rxid", "rgmii-txid")
+		see dt-bindings/net/adin.h
+		default value is 0 (which represnets 2 ns)
+	- adi,tx-internal-delay: RGMII TX Clock Delay
+		used only when PHY operates in RGMII mode
+		(phy-mode is "rgmii-id", "rgmii-rxid", "rgmii-txid")
+		see dt-bindings/net/adin.h
+		default value is 0 (which represnets 2 ns)
 
 Example:
 
 	ethernet-phy@0 {
 		compatible = "ethernet-phy-ieee802.3-c45";
 		reg = <0>;
+	};
+
+	ethernet-phy@1 {
+		reg = <1>;
+		phy-mode-internal = "rgmii-id";
+
+		adi,rx-internal-delay = <ADIN1300_RGMII_1_80_NS>;
+		adi,tx-internal-delay = <ADIN1300_RGMII_2_20_NS>;
 	};
