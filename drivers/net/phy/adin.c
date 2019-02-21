@@ -53,6 +53,8 @@
 #define   ADIN1300_GE_RGMII_EN			BIT(0)
 
 #define ADIN1300_GE_RMII_CFG_REG		0xff24
+#define   ADIN1300_GE_RMII_FIFO_DEPTH_MSK	GENMASK(6, 4)
+#define   ADIN1300_GE_RMII_FIFO_DEPTH_SEL(x)	FIELD_PREP(ADIN1300_GE_RMII_FIFO_DEPTH_MSK, x)
 #define   ADIN1300_GE_RMII_EN			BIT(0)
 
 static int adin_get_phy_internal_mode(struct phy_device *phydev)
@@ -144,6 +146,8 @@ write:
 static int adin_config_rmii_mode(struct phy_device *phydev,
 				 phy_interface_t intf)
 {
+	struct device *dev = &phydev->mdio.dev;
+	u32 val;
 	int reg;
 
 	reg = phy_read_mmd(phydev, MDIO_MMD_VEND1, ADIN1300_GE_RMII_CFG_REG);
@@ -156,6 +160,12 @@ static int adin_config_rmii_mode(struct phy_device *phydev,
 	}
 
 	reg |= ADIN1300_GE_RMII_EN;
+
+	if (device_property_read_u32(dev, "adi,fifo-depth", &val))
+		val = ADIN1300_RMII_8_BITS;
+
+	reg &= ~ADIN1300_GE_RMII_FIFO_DEPTH_MSK;
+	reg |= ADIN1300_GE_RMII_FIFO_DEPTH_SEL(val);
 
 write:
 	return phy_write_mmd(phydev, MDIO_MMD_VEND1,

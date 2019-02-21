@@ -21,4 +21,12 @@
 #define	ADIN1300_RGMII_2_20_NS		0x6
 #define	ADIN1300_RGMII_2_40_NS		0x7
 
+/* RMII fifo depth values */
+#define ADIN1300_RMII_4_BITS		0x0
+#define ADIN1300_RMII_8_BITS		0x1
+#define ADIN1300_RMII_12_BITS		0x2
+#define ADIN1300_RMII_16_BITS		0x3
+#define ADIN1300_RMII_20_BITS		0x4
+#define ADIN1300_RMII_24_BITS		0x5
+
 #endif

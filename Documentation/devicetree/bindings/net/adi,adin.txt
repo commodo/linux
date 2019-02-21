@@ -38,3 +38,10 @@ Example:
 		adi,rx-internal-delay = <ADIN1300_RGMII_1_80_NS>;
 		adi,tx-internal-delay = <ADIN1300_RGMII_2_20_NS>;
 	};
+
+	ethernet-phy@2 {
+		reg = <2>;
+		phy-mode = "rmii";
+
+		adi,fifo-depth = <ADIN1300_RMII_16_BITS>;
+	};
