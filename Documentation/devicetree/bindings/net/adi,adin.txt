@@ -9,6 +9,10 @@ Optional properties:
 		management registers. If unspecified, Clause 22 will be used.
 		Use this only when MDIO supports Clause 45 access, but there is
 		no other way to determine this.
+	- phy-mode-internal: The internal mode of the PHY. This assumes that there
+		is a PHY converter in-between the MAC & PHY.
+		Valid values are: "rgmii", "rgmii-id", "rgmii-txid", "rgmii-rxid",
+		"rmii", "mii"
 
 Example:
 
