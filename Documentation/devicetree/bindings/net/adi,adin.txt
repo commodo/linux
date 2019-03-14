@@ -27,6 +27,8 @@ Optional properties:
 	  see Documentation/devicetree/bindings/gpio/gpio.txt.
 	- adi,eee-enabled: advertise EEE capabilities on power-up/init
 			   (default disabled)
+	- adi,disable-energy-detect: disable Energy Detect Powerdown Mode
+				     (default enabled)
 
 Example:
 

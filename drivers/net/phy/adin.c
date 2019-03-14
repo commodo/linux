@@ -33,6 +33,11 @@
 #define   ADIN1300_AUTO_MDI_EN			BIT(10)
 #define   ADIN1300_MAN_MDIX_EN			BIT(9)
 
+#define ADIN1300_PHY_CTRL_STATUS2		0x0015
+#define   ADIN1300_NRG_PD_EN			BIT(3)
+#define   ADIN1300_NRG_PD_TX_EN			BIT(2)
+#define   ADIN1300_NRG_PD_STATUS		BIT(1)
+
 #define ADIN1300_INT_MASK_REG			0x0018
 #define   ADIN1300_INT_MDIO_SYNC_EN		BIT(9)
 #define   ADIN1300_INT_ANEG_STAT_CHNG_EN	BIT(8)
@@ -98,10 +103,12 @@ static struct clause22_mmd_map clause22_mmd_map[] = {
  * struct adin_priv - ADIN PHY driver private data
  * gpiod_reset		optional reset GPIO, to be used in soft_reset() cb
  * eee_modes		EEE modes to advertise after reset
+ * edpd_enabled		true if Energy Detect Powerdown mode is enabled
  */
 struct adin_priv {
 	struct gpio_desc	*gpiod_reset;
 	u8			eee_modes;
+	bool			edpd_enabled;
 };
 
 static int adin_get_phy_internal_mode(struct phy_device *phydev)
@@ -236,6 +243,18 @@ static int adin_config_init_eee(struct phy_device *phydev)
 	return phy_write_mmd(phydev, MDIO_MMD_VEND1, ADIN1300_EEE_ADV_REG, reg);
 }
 
+static int adin_config_init_edpd(struct phy_device *phydev)
+{
+	struct adin_priv *priv = phydev->priv;
+
+	if (priv->edpd_enabled)
+		return phy_set_bits(phydev, ADIN1300_PHY_CTRL_STATUS2,
+				(ADIN1300_NRG_PD_EN | ADIN1300_NRG_PD_TX_EN));
+
+	return phy_clear_bits(phydev, ADIN1300_PHY_CTRL_STATUS2,
+			(ADIN1300_NRG_PD_EN | ADIN1300_NRG_PD_TX_EN));
+}
+
 static int adin_config_init(struct phy_device *phydev)
 {
 	phy_interface_t interface, rc;
@@ -259,6 +278,10 @@ static int adin_config_init(struct phy_device *phydev)
 		return rc;
 
 	rc = adin_config_init_eee(phydev);
+	if (rc < 0)
+		return rc;
+
+	rc = adin_config_init_edpd(phydev);
 	if (rc < 0)
 		return rc;
 
@@ -539,6 +562,10 @@ static int adin_probe(struct phy_device *phydev)
 	priv->gpiod_reset = gpiod_reset;
 	if (device_property_read_bool(dev, "adi,eee-enabled"))
 		priv->eee_modes = (MDIO_EEE_100TX | MDIO_EEE_1000T);
+	if (device_property_read_bool(dev, "adi,disable-energy-detect"))
+		priv->edpd_enabled = false;
+	else
+		priv->edpd_enabled = true;
 	phydev->priv = priv;
 
 	return adin_reset(phydev);
