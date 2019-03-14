@@ -12,12 +12,14 @@
  */
 #include <linux/kernel.h>
 #include <linux/bitfield.h>
+#include <linux/delay.h>
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/mii.h>
 #include <linux/phy.h>
 #include <linux/property.h>
+#include <linux/gpio/consumer.h>
 
 #include <dt-bindings/net/adin.h>
 
@@ -61,6 +63,9 @@
 #define ADIN1300_CLOCK_STOP_REG			0x9400
 #define ADIN1300_LPI_WAKE_ERR_CNT_REG		0xa000
 
+#define ADIN1300_GE_SOFT_RESET_REG		0xff0c
+#define   ADIN1300_GE_SOFT_RESET		BIT(0)
+
 #define ADIN1300_GE_RGMII_CFG_REG		0xff23
 #define   ADIN1300_GE_RGMII_RX_MSK		GENMASK(8, 6)
 #define   ADIN1300_GE_RGMII_RX_SEL(x)		FIELD_PREP(ADIN1300_GE_RGMII_RX_MSK, x)
@@ -87,6 +92,14 @@ static struct clause22_mmd_map clause22_mmd_map[] = {
 	{ MDIO_MMD_AN,	MDIO_AN_EEE_ADV,	ADIN1300_EEE_ADV_REG },
 	{ MDIO_MMD_PCS,	MDIO_CTRL1,		ADIN1300_CLOCK_STOP_REG },
 	{ MDIO_MMD_PCS, MDIO_PCS_EEE_WK_ERR,	ADIN1300_LPI_WAKE_ERR_CNT_REG },
+};
+
+/**
+ * struct adin_priv - ADIN PHY driver private data
+ * gpiod_reset		optional reset GPIO, to be used in soft_reset() cb
+ */
+struct adin_priv {
+	struct gpio_desc	*gpiod_reset;
 };
 
 static int adin_get_phy_internal_mode(struct phy_device *phydev)
@@ -435,6 +448,73 @@ static int adin_read_status(struct phy_device *phydev)
 	return genphy_read_status(phydev);
 }
 
+static int adin_subsytem_soft_reset(struct phy_device *phydev)
+{
+	int reg, rc, i;
+
+	reg = phy_read_mmd(phydev, MDIO_MMD_VEND1, ADIN1300_GE_SOFT_RESET_REG);
+	if (reg < 0)
+		return reg;
+
+	reg |= ADIN1300_GE_SOFT_RESET;
+	rc = phy_write_mmd(phydev, MDIO_MMD_VEND1, ADIN1300_GE_SOFT_RESET_REG,
+			   reg);
+	if (rc < 0)
+		return rc;
+
+	for (i = 0; i < 20; i++) {
+		udelay(500);
+		reg = phy_read_mmd(phydev, MDIO_MMD_VEND1,
+				   ADIN1300_GE_SOFT_RESET_REG);
+		if (reg < 0 || (reg & ADIN1300_GE_SOFT_RESET))
+			continue;
+		return 0;
+	}
+
+	return -ETIMEDOUT;
+}
+
+static int adin_reset(struct phy_device *phydev)
+{
+	struct adin_priv *priv = phydev->priv;
+	int ret;
+
+	if (priv->gpiod_reset) {
+		/* GPIO reset requires min 10 uS low,
+		 * 5 msecs max before we know that the interface is up again
+		 */
+		gpiod_set_value(priv->gpiod_reset, 0);
+		udelay(12);
+		gpiod_set_value(priv->gpiod_reset, 1);
+		mdelay(6);
+
+		return 0;
+	}
+
+	/* Reset PHY core regs & subsystem regs */
+	return adin_subsytem_soft_reset(phydev);
+}
+
+static int adin_probe(struct phy_device *phydev)
+{
+	struct device *dev = &phydev->mdio.dev;
+	struct gpio_desc *gpiod_reset;
+	struct adin_priv *priv;
+
+	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
+	if (!priv)
+		return -ENOMEM;
+
+	gpiod_reset = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_HIGH);
+	if (IS_ERR(gpiod_reset))
+		gpiod_reset = NULL;
+
+	priv->gpiod_reset = gpiod_reset;
+	phydev->priv = priv;
+
+	return adin_reset(phydev);
+}
+
 static struct phy_driver adin_driver[] = {
 	{
 		.phy_id		= PHY_ID_ADIN1200,
@@ -443,6 +523,7 @@ static struct phy_driver adin_driver[] = {
 		.features	= PHY_BASIC_FEATURES,
 		.flags		= PHY_HAS_INTERRUPT,
 		.config_init	= adin_config_init,
+		.probe		= adin_probe,
 		.config_aneg	= adin_config_aneg,
 		.read_status	= adin_read_status,
 		.ack_interrupt	= adin_phy_ack_intr,
@@ -459,6 +540,7 @@ static struct phy_driver adin_driver[] = {
 		.features	= PHY_GBIT_FEATURES,
 		.flags		= PHY_HAS_INTERRUPT,
 		.config_init	= adin_config_init,
+		.probe		= adin_probe,
 		.config_aneg	= adin_config_aneg,
 		.read_status	= adin_read_status,
 		.ack_interrupt	= adin_phy_ack_intr,
