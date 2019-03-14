@@ -25,6 +25,8 @@ Optional properties:
 		default value is 0 (which represnets 2 ns)
 	- reset-gpios: GPIO to reset the PHY, called via the PHY framework
 	  see Documentation/devicetree/bindings/gpio/gpio.txt.
+	- adi,eee-enabled: advertise EEE capabilities on power-up/init
+			   (default disabled)
 
 Example:
 

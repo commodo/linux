@@ -97,9 +97,11 @@ static struct clause22_mmd_map clause22_mmd_map[] = {
 /**
  * struct adin_priv - ADIN PHY driver private data
  * gpiod_reset		optional reset GPIO, to be used in soft_reset() cb
+ * eee_modes		EEE modes to advertise after reset
  */
 struct adin_priv {
 	struct gpio_desc	*gpiod_reset;
+	u8			eee_modes;
 };
 
 static int adin_get_phy_internal_mode(struct phy_device *phydev)
@@ -217,6 +219,23 @@ write:
 			     ADIN1300_GE_RMII_CFG_REG, reg);
 }
 
+static int adin_config_init_eee(struct phy_device *phydev)
+{
+	struct adin_priv *priv = phydev->priv;
+	int reg;
+
+	reg = phy_read_mmd(phydev, MDIO_MMD_VEND1, ADIN1300_EEE_ADV_REG);
+	if (reg < 0)
+		return reg;
+
+	if (priv->eee_modes)
+		reg |= priv->eee_modes;
+	else
+		reg &= ~(MDIO_EEE_100TX | MDIO_EEE_1000T);
+
+	return phy_write_mmd(phydev, MDIO_MMD_VEND1, ADIN1300_EEE_ADV_REG, reg);
+}
+
 static int adin_config_init(struct phy_device *phydev)
 {
 	phy_interface_t interface, rc;
@@ -236,6 +255,10 @@ static int adin_config_init(struct phy_device *phydev)
 		return rc;
 
 	rc = adin_config_rmii_mode(phydev, interface);
+	if (rc < 0)
+		return rc;
+
+	rc = adin_config_init_eee(phydev);
 	if (rc < 0)
 		return rc;
 
@@ -479,6 +502,10 @@ static int adin_reset(struct phy_device *phydev)
 	struct adin_priv *priv = phydev->priv;
 	int ret;
 
+	/* Update EEE settings before resetting, in case ethtool changed them */
+	ret = phy_read_mmd(phydev, MDIO_MMD_VEND1, ADIN1300_EEE_ADV_REG);
+	priv->eee_modes = (ret & (MDIO_EEE_100TX | MDIO_EEE_1000T));
+
 	if (priv->gpiod_reset) {
 		/* GPIO reset requires min 10 uS low,
 		 * 5 msecs max before we know that the interface is up again
@@ -510,6 +537,8 @@ static int adin_probe(struct phy_device *phydev)
 		gpiod_reset = NULL;
 
 	priv->gpiod_reset = gpiod_reset;
+	if (device_property_read_bool(dev, "adi,eee-enabled"))
+		priv->eee_modes = (MDIO_EEE_100TX | MDIO_EEE_1000T);
 	phydev->priv = priv;
 
 	return adin_reset(phydev);
