@@ -38,6 +38,13 @@
 #define   ADIN1300_NRG_PD_TX_EN			BIT(2)
 #define   ADIN1300_NRG_PD_STATUS		BIT(1)
 
+#define ADIN1300_PHY_CTRL2			0x0016
+#define   ADIN1300_DOWNSPEED_AN_100_EN		BIT(11)
+#define   ADIN1300_DOWNSPEED_AN_10_EN		BIT(10)
+#define   ADIN1300_GROUP_MDIO_EN		BIT(6)
+#define   ADIN1300_DOWNSPEEDS_EN	\
+	(ADIN1300_DOWNSPEED_AN_100_EN | ADIN1300_DOWNSPEED_AN_10_EN)
+
 #define ADIN1300_INT_MASK_REG			0x0018
 #define   ADIN1300_INT_MDIO_SYNC_EN		BIT(9)
 #define   ADIN1300_INT_ANEG_STAT_CHNG_EN	BIT(8)
@@ -431,12 +438,32 @@ static int adin_config_mdix(struct phy_device *phydev)
 	return phy_write(phydev, ADIN1300_PHY_CTRL1, reg);
 }
 
+static int adin_config_downspeeds(struct phy_device *phydev)
+{
+	int reg;
+
+	reg = phy_read(phydev, ADIN1300_PHY_CTRL2);
+	if (reg < 0)
+		return reg;
+
+	if ((reg & ADIN1300_DOWNSPEEDS_EN) == ADIN1300_DOWNSPEEDS_EN)
+		return 0;
+
+	reg |= ADIN1300_DOWNSPEEDS_EN;
+
+	return phy_write(phydev, ADIN1300_PHY_CTRL2, reg);
+}
+
 static int adin_config_aneg(struct phy_device *phydev)
 {
 	int ret;
 
 	ret = adin_config_mdix(phydev);
 	if (ret)
+		return ret;
+
+	ret = adin_config_downspeeds(phydev);
+	if (ret < 0)
 		return ret;
 
 	return genphy_config_aneg(phydev);
