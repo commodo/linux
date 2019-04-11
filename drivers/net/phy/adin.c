@@ -11,7 +11,12 @@
  *
  */
 #include <linux/kernel.h>
+#include <linux/version.h>
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4, 8, 0)
 #include <linux/bitfield.h>
+#else
+#include "bitfield.h"
+#endif
 #include <linux/delay.h>
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -22,6 +27,8 @@
 #include <linux/gpio/consumer.h>
 
 #include <dt-bindings/net/adin.h>
+
+#include "adin-compat.h"
 
 #define PHY_ID_ADIN1200				0x0283bc20
 #define PHY_ID_ADIN1300				0x0283bc30
@@ -92,6 +99,16 @@
 #define   ADIN1300_GE_RMII_FIFO_DEPTH_SEL(x)	FIELD_PREP(ADIN1300_GE_RMII_FIFO_DEPTH_MSK, x)
 #define   ADIN1300_GE_RMII_EN			BIT(0)
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4, 4, 0)
+#define phydev_dev(phydev)	(phydev->mdio.dev)
+#define phydev_bus(phydev)	(phydev->mdio.bus)
+#define phydev_addr(phydev)	(phydev->mdio.addr)
+#else
+#define phydev_dev(phydev)	(phydev->dev)
+#define phydev_bus(phydev)	(phydev->bus)
+#define phydev_addr(phydev)	(phydev->addr)
+#endif
+
 struct clause22_mmd_map {
 	int devad;
 	u16 cl22_regnum;
@@ -147,7 +164,7 @@ struct adin_priv {
 
 static int adin_get_phy_internal_mode(struct phy_device *phydev)
 {
-	struct device *dev = &phydev->mdio.dev;
+	struct device *dev = &phydev_dev(phydev);
 	const char *pm;
 	int i;
 
@@ -173,7 +190,7 @@ static int adin_get_phy_internal_mode(struct phy_device *phydev)
 static void adin_config_rgmii_rx_internal_delay(struct phy_device *phydev,
 						int *reg)
 {
-	struct device *dev = &phydev->mdio.dev;
+	struct device *dev = &phydev_dev(phydev);
 	u32 val;
 
 	if (device_property_read_u32(dev, "adi,rx-internal-delay", &val))
@@ -186,7 +203,7 @@ static void adin_config_rgmii_rx_internal_delay(struct phy_device *phydev,
 static void adin_config_rgmii_tx_internal_delay(struct phy_device *phydev,
 						int *reg)
 {
-	struct device *dev = &phydev->mdio.dev;
+	struct device *dev = &phydev_dev(phydev);
 	u32 val;
 
 	if (device_property_read_u32(dev, "adi,tx-internal-delay", &val))
@@ -234,7 +251,7 @@ write:
 static int adin_config_rmii_mode(struct phy_device *phydev,
 				 phy_interface_t intf)
 {
-	struct device *dev = &phydev->mdio.dev;
+	struct device *dev = &phydev_dev(phydev);
 	u32 val;
 	int reg;
 
@@ -293,7 +310,9 @@ static int adin_config_init(struct phy_device *phydev)
 {
 	phy_interface_t interface, rc;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 	phydev->mdix_ctrl = ETH_TP_MDI_AUTO;
+#endif
 
 	rc = genphy_config_init(phydev);
 	if (rc < 0)
@@ -320,10 +339,10 @@ static int adin_config_init(struct phy_device *phydev)
 		return rc;
 
 	if (phydev->interface == interface)
-		dev_info(&phydev->mdio.dev, "PHY is using mode '%s'\n",
+		dev_info(&phydev_dev(phydev), "PHY is using mode '%s'\n",
 			 phy_modes(phydev->interface));
 	else
-		dev_info(&phydev->mdio.dev,
+		dev_info(&phydev_dev(phydev),
 			 "PHY is using mode '%s', MAC is using mode '%s'\n",
 			 phy_modes(interface), phy_modes(phydev->interface));
 
@@ -377,10 +396,14 @@ static int adin_cl22_to_adin_reg(int devad, u16 cl22_regnum)
 	return -EINVAL;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
+int adin_read_mmd(struct phy_device *phydev, int devad, u16 regnum)
+#else
 static int adin_read_mmd(struct phy_device *phydev, int devad, u16 regnum)
+#endif
 {
-	struct mii_bus *bus = phydev->mdio.bus;
-	int phy_addr = phydev->mdio.addr;
+	struct mii_bus *bus = phydev_bus(phydev);
+	int phy_addr = phydev_addr(phydev);
 	int adin_regnum;
 	int err;
 
@@ -402,11 +425,16 @@ static int adin_read_mmd(struct phy_device *phydev, int devad, u16 regnum)
 	return __mdiobus_read(bus, phy_addr, ADIN1300_MII_EXT_REG_DATA);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
+int adin_write_mmd(struct phy_device *phydev, int devad, u16 regnum,
+		   u16 val)
+#else
 static int adin_write_mmd(struct phy_device *phydev, int devad, u16 regnum,
 			  u16 val)
+#endif
 {
-	struct mii_bus *bus = phydev->mdio.bus;
-	int phy_addr = phydev->mdio.addr;
+	struct mii_bus *bus = phydev_bus(phydev);
+	int phy_addr = phydev_addr(phydev);
 	int adin_regnum;
 	int err;
 
@@ -428,6 +456,7 @@ static int adin_write_mmd(struct phy_device *phydev, int devad, u16 regnum,
 	return __mdiobus_write(bus, phy_addr, ADIN1300_MII_EXT_REG_DATA, val);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 static int adin_config_mdix(struct phy_device *phydev)
 {
 	bool auto_en, mdix_en;
@@ -464,6 +493,12 @@ static int adin_config_mdix(struct phy_device *phydev)
 
 	return phy_write(phydev, ADIN1300_PHY_CTRL1, reg);
 }
+#else
+static inline int adin_config_mdix(struct phy_device *phydev)
+{
+	return 0;
+}
+#endif
 
 static int adin_config_downspeeds(struct phy_device *phydev)
 {
@@ -496,6 +531,7 @@ static int adin_config_aneg(struct phy_device *phydev)
 	return genphy_config_aneg(phydev);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 static int adin_mdix_update(struct phy_device *phydev)
 {
 	bool auto_en, mdix_en;
@@ -536,6 +572,12 @@ static int adin_mdix_update(struct phy_device *phydev)
 
 	return 0;
 }
+#else
+static inline int adin_mdix_update(struct phy_device *phydev)
+{
+	return 0;
+}
+#endif
 
 static int adin_read_status(struct phy_device *phydev)
 {
@@ -599,6 +641,7 @@ static int adin_reset(struct phy_device *phydev)
 	return adin_subsytem_soft_reset(phydev);
 }
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4, 3, 0)
 static int adin_get_sset_count(struct phy_device *phydev)
 {
 	return ARRAY_SIZE(adin_hw_stats);
@@ -673,10 +716,11 @@ static void adin_get_stats(struct phy_device *phydev,
 	for (i = 0; i < ARRAY_SIZE(adin_hw_stats); i++)
 		data[i] = adin_get_stat(phydev, i);
 }
+#endif /* > 4.3.0 */
 
 static int adin_probe(struct phy_device *phydev)
 {
-	struct device *dev = &phydev->mdio.dev;
+	struct device *dev = &phydev_dev(phydev);
 	struct gpio_desc *gpiod_reset;
 	struct adin_priv *priv;
 
@@ -700,6 +744,20 @@ static int adin_probe(struct phy_device *phydev)
 	return adin_reset(phydev);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
+static int adin_read_mmd_indirect(struct phy_device *dev, int ptrad,
+				  int devnum, int regnum)
+{
+	return adin_read_mmd(dev, devnum, ptrad);
+}
+
+static void adin_write_mmd_indirect(struct phy_device *dev, int ptrad,
+				    int devnum, int regnum, u32 val)
+{
+	adin_write_mmd(dev, devnum, ptrad, val);
+}
+#endif
+
 static struct phy_driver adin_driver[] = {
 	{
 		.phy_id		= PHY_ID_ADIN1200,
@@ -713,13 +771,20 @@ static struct phy_driver adin_driver[] = {
 		.read_status	= adin_read_status,
 		.ack_interrupt	= adin_phy_ack_intr,
 		.config_intr	= adin_phy_config_intr,
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4, 3, 0)
 		.get_sset_count	= adin_get_sset_count,
 		.get_strings	= adin_get_strings,
 		.get_stats	= adin_get_stats,
+#endif
 		.resume		= genphy_resume,
 		.suspend	= genphy_suspend,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
+		.read_mmd_indirect	= adin_read_mmd_indirect,
+		.write_mmd_indirect	= adin_write_mmd_indirect,
+#else
 		.read_mmd	= adin_read_mmd,
 		.write_mmd	= adin_write_mmd,
+#endif
 	},
 	{
 		.phy_id		= PHY_ID_ADIN1300,
@@ -733,13 +798,20 @@ static struct phy_driver adin_driver[] = {
 		.read_status	= adin_read_status,
 		.ack_interrupt	= adin_phy_ack_intr,
 		.config_intr	= adin_phy_config_intr,
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4, 3, 0)
 		.get_sset_count	= adin_get_sset_count,
 		.get_strings	= adin_get_strings,
 		.get_stats	= adin_get_stats,
+#endif
 		.resume		= genphy_resume,
 		.suspend	= genphy_suspend,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
+		.read_mmd_indirect	= adin_read_mmd_indirect,
+		.write_mmd_indirect	= adin_write_mmd_indirect,
+#else
 		.read_mmd	= adin_read_mmd,
 		.write_mmd	= adin_write_mmd,
+#endif
 	},
 };
 
