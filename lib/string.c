@@ -658,6 +658,26 @@ int match_string(const char * const *array, size_t n, const char *string)
 }
 EXPORT_SYMBOL(match_string);
 
+static int __sysfs_match_string_common(const char * const *array, size_t n,
+				       const char *str, bool gaps)
+{
+	const char *item;
+	int index;
+
+	for (index = 0; index < n; index++) {
+		item = array[index];
+		if (!item) {
+			if (gaps)
+				continue;
+			break;
+		}
+		if (sysfs_streq(item, str))
+			return index;
+	}
+
+	return -EINVAL;
+}
+
 /**
  * __sysfs_match_string - matches given string in an array
  * @array: array of strings
@@ -669,20 +689,26 @@ EXPORT_SYMBOL(match_string);
  */
 int __sysfs_match_string(const char * const *array, size_t n, const char *str)
 {
-	const char *item;
-	int index;
-
-	for (index = 0; index < n; index++) {
-		item = array[index];
-		if (!item)
-			break;
-		if (sysfs_streq(item, str))
-			return index;
-	}
-
-	return -EINVAL;
+	return __sysfs_match_string_common(array, n, str, false);
 }
 EXPORT_SYMBOL(__sysfs_match_string);
+
+/**
+ * __sysfs_match_string_with_gaps - matches string in array ignoring NULLs
+ * @array: array of strings
+ * @n: number of strings in the array or -1 for NULL terminated arrays
+ * @str: string to match with
+ *
+ * Returns index of @str in the @array or -EINVAL, just like match_string().
+ * Uses sysfs_streq instead of strcmp for matching.
+ * Ignores NULL entries within the @array.
+ */
+int __sysfs_match_string_with_gaps(const char * const *array, size_t n,
+				   const char *str)
+{
+	return __sysfs_match_string_common(array, n, str, true);
+}
+EXPORT_SYMBOL(__sysfs_match_string_with_gaps);
 
 #ifndef __HAVE_ARCH_MEMSET
 /**

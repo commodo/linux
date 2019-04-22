@@ -190,6 +190,8 @@ static inline int strtobool(const char *s, bool *res)
 
 int match_string(const char * const *array, size_t n, const char *string);
 int __sysfs_match_string(const char * const *array, size_t n, const char *s);
+int __sysfs_match_string_with_gaps(const char * const *array, size_t n,
+				   const char *str);
 
 /**
  * sysfs_match_string - matches given string in an array
