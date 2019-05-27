@@ -99,6 +99,8 @@ struct ad9680_jesd204_link_config {
 	struct ad9680_sysref_config sysref;
 };
 
+static struct ad9680_jesd204_link_config link_config;
+
 static int ad9680_spi_read(struct spi_device *spi, unsigned int reg)
 {
 	unsigned char buf[3];
@@ -840,7 +842,6 @@ static int ad9680_setup_link(struct spi_device *spi,
 static int ad9680_setup(struct spi_device *spi, bool ad9234)
 {
 	struct axiadc_converter *conv = spi_get_drvdata(spi);
-	struct ad9680_jesd204_link_config link_config;
 	unsigned int pll_stat;
 	unsigned int i;
 	int ret, tmp = 1;
@@ -874,7 +875,6 @@ static int ad9680_setup(struct spi_device *spi, bool ad9234)
 						sfdr_optim_vals[tmp]);
 	}
 
-	memset(&link_config, 0x00, sizeof(link_config));
 	link_config.did = 0;
 	link_config.bid = 1;
 	link_config.num_lanes = 4;
