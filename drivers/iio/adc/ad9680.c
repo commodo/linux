@@ -66,30 +66,6 @@ enum {
 	ID_AD9684,
 };
 
-enum ad9680_sysref_mode {
-	AD9680_SYSREF_DISABLED,
-	AD9680_SYSREF_CONTINUOUS,
-	AD9680_SYSREF_ONESHOT
-};
-
-struct ad9680_sysref_config {
-	enum ad9680_sysref_mode mode;
-	bool capture_falling_edge;
-	bool valid_falling_edge;
-};
-
-struct ad9680_jesd204_link_config {
-	uint8_t lane_mux[4];
-
-	bool scrambling;
-
-	struct jesd204_dev_link_config jesd204_config;
-
-	struct ad9680_sysref_config sysref;
-};
-
-static struct ad9680_jesd204_link_config link_config;
-
 static int ad9680_spi_read(struct spi_device *spi, unsigned int reg)
 {
 	unsigned char buf[3];
@@ -673,7 +649,6 @@ static int ad9680_setup_jesd204_link(struct axiadc_converter *conv,
 static int ad9680_set_sample_rate(struct axiadc_converter *conv,
 	unsigned int sample_rate)
 {
-	unsigned int pll_stat;
 	int ret = 0;
 
 	/*
@@ -684,13 +659,6 @@ static int ad9680_set_sample_rate(struct axiadc_converter *conv,
 	 */
 	sample_rate = clamp(sample_rate, 312500000U, 1000000000U);
 	sample_rate = clk_round_rate(conv->clk, sample_rate);
-
-	/* Disable link */
-	ad9680_spi_write(conv->spi, 0x571, 0x15);
-
-	clk_disable_unprepare(conv->lane_clk);
-	clk_disable_unprepare(conv->sysref_clk);
-	clk_disable_unprepare(conv->clk);
 
 	ret = clk_set_rate(conv->clk, sample_rate);
 	if (ret) {
@@ -703,6 +671,54 @@ static int ad9680_set_sample_rate(struct axiadc_converter *conv,
 	if (ret < 0)
 		return ret;
 
+	conv->adc_clk = sample_rate;
+
+	return 0;
+}
+
+static int ad9680_jesd204_init_clks(struct jesd204_dev *jdev)
+{
+	struct device *dev = jesd204_dev_to_device(jdev);
+	struct spi_device *spi = to_spi_device(dev);
+	struct axiadc_converter *conv = spi_get_drvdata(spi);
+
+	conv->sysref_clk = devm_clk_get(&conv->spi->dev, "adc_sysref");
+	if (IS_ERR(conv->sysref_clk)) {
+		if (PTR_ERR(conv->sysref_clk) != -ENOENT)
+			return PTR_ERR(conv->sysref_clk);
+		conv->sysref_clk = NULL;
+	}
+
+	conv->clk = devm_clk_get(&conv->spi->dev, "adc_clk");
+	if (IS_ERR(conv->clk) && PTR_ERR(conv->clk) != -ENOENT)
+		return PTR_ERR(conv->clk);
+
+	conv->lane_clk = devm_clk_get(&conv->spi->dev, "jesd_adc_clk");
+	if (IS_ERR(conv->lane_clk) && PTR_ERR(conv->lane_clk) != -ENOENT)
+		return PTR_ERR(conv->lane_clk);
+
+	return JESD204_STATE_CHANGE_DONE;
+}
+
+static int ad9680_jesd204_disable_clks(struct jesd204_dev *jdev)
+{
+	struct device *dev = jesd204_dev_to_device(jdev);
+	struct spi_device *spi = to_spi_device(dev);
+	struct axiadc_converter *conv = spi_get_drvdata(spi);
+
+	clk_disable_unprepare(conv->sysref_clk);
+	clk_disable_unprepare(conv->clk);
+
+	return JESD204_STATE_CHANGE_DONE;
+}
+
+static int ad9680_jesd204_enable_clks(struct jesd204_dev *jdev)
+{
+	struct device *dev = jesd204_dev_to_device(jdev);
+	struct spi_device *spi = to_spi_device(dev);
+	struct axiadc_converter *conv = spi_get_drvdata(spi);
+	int ret;
+
 	ret = clk_prepare_enable(conv->clk);
 	if (ret) {
 		dev_err(&conv->spi->dev, "Failed to enable converter clock: %d\n", ret);
@@ -713,6 +729,33 @@ static int ad9680_set_sample_rate(struct axiadc_converter *conv,
 		dev_err(&conv->spi->dev, "Failed to enable SYSREF clock: %d\n", ret);
 		return ret;
 	}
+
+	return JESD204_STATE_CHANGE_DONE;
+}
+
+static int ad9680_jesd204_disable_link(struct jesd204_dev *jdev,
+				       unsigned int link)
+{
+	struct device *dev = jesd204_dev_to_device(jdev);
+	struct spi_device *spi = to_spi_device(dev);
+	struct axiadc_converter *conv = spi_get_drvdata(spi);
+
+	/* Disable link */
+	ad9680_spi_write(conv->spi, 0x571, 0x15);
+
+	clk_disable_unprepare(conv->lane_clk);
+
+	return JESD204_STATE_CHANGE_DONE;
+}
+
+static int ad9680_jesd204_enable_link(struct jesd204_dev *jdev,
+				      unsigned int link)
+{
+	struct device *dev = jesd204_dev_to_device(jdev);
+	struct spi_device *spi = to_spi_device(dev);
+	struct axiadc_converter *conv = spi_get_drvdata(spi);
+	unsigned int pll_stat;
+	int ret;
 
 	// Enable link
 	ad9680_spi_write(conv->spi, 0x571, 0x14);
@@ -729,54 +772,21 @@ static int ad9680_set_sample_rate(struct axiadc_converter *conv,
 		return ret;
 	}
 
-	conv->adc_clk = sample_rate;
-
-	return 0;
-}
-
-static int ad9680_request_clks(struct axiadc_converter *conv)
-{
-	int ret;
-
-	conv->sysref_clk = devm_clk_get(&conv->spi->dev, "adc_sysref");
-	if (IS_ERR(conv->sysref_clk)) {
-		if (PTR_ERR(conv->sysref_clk) != -ENOENT)
-			return PTR_ERR(conv->sysref_clk);
-		conv->sysref_clk = NULL;
-	} else {
-		ret = clk_prepare_enable(conv->sysref_clk);
-		if (ret < 0)
-			return ret;
-	}
-
-	conv->clk = devm_clk_get(&conv->spi->dev, "adc_clk");
-	if (IS_ERR(conv->clk) && PTR_ERR(conv->clk) != -ENOENT)
-		return PTR_ERR(conv->clk);
-
-	if (!IS_ERR(conv->clk)) {
-		ret = clk_prepare_enable(conv->clk);
-		if (ret < 0)
-			return ret;
-
-		conv->adc_clk = clk_get_rate(conv->clk);
-	}
-
-	conv->lane_clk = devm_clk_get(&conv->spi->dev, "jesd_adc_clk");
-	if (IS_ERR(conv->lane_clk) && PTR_ERR(conv->lane_clk) != -ENOENT)
-		return PTR_ERR(conv->lane_clk);
-
-	return 0;
+	return JESD204_STATE_CHANGE_DONE;
 }
 
 static int ad9680_jesd204_setup_link(struct jesd204_dev *jdev,
-				     struct jesd204_dev_link_config *config)
+				     unsigned int link_num,
+				     struct jesd204_link *config)
 {
 	struct device *dev = jesd204_dev_to_device(jdev);
 	struct spi_device *spi = to_spi_device(dev);
+	struct axiadc_converter *conv = spi_get_drvdata(spi);
 	unsigned int val;
 	unsigned int i;
 	int ret = 0;
 
+	pr_err("%s %d\n", __func__, __LINE__);
 	if (!dev)
 		return -ENODEV;
 
@@ -802,7 +812,7 @@ static int ad9680_jesd204_setup_link(struct jesd204_dev *jdev,
 	}
 
 	val = config->num_lanes - 1;
-	val |= link_config.scrambling ? 0x80 : 0x00;
+	val |= config->scrambling ? 0x80 : 0x00;
 	ret |= ad9680_spi_write(spi, 0x58b, val);
 
 	ret |= ad9680_spi_write(spi, 0x58d, config->frames_per_multiframe - 1);
@@ -815,40 +825,30 @@ static int ad9680_jesd204_setup_link(struct jesd204_dev *jdev,
 	/* Disable SYSREF */
 	ret |= ad9680_spi_write(spi, 0x120, 0x00);
 
-	switch (link_config.sysref.mode) {
-	case AD9680_SYSREF_CONTINUOUS:
+	if (conv->sysref_clk)
 		val = 0x02;
-		break;
-	case AD9680_SYSREF_ONESHOT:
+	else
 		val = 0x04;
-		break;
-	default:
-		val = 0x00;
-		break;
-	}
 
-	if (link_config.sysref.capture_falling_edge)
+	//if (link_config.sysref.capture_falling_edge)
+	if (true)
 		val |= 0x08;
 
-	if (link_config.sysref.valid_falling_edge)
+	//if (link_config.sysref.valid_falling_edge)
+	if (false)
 		val |= 0x10;
 	ret |= ad9680_spi_write(spi, 0x120, val);
 
-	return ret;
+	return ret ? ret : JESD204_STATE_CHANGE_DONE;
 }
 
 static int ad9680_setup(struct spi_device *spi, bool ad9234)
 {
-	struct axiadc_converter *conv = spi_get_drvdata(spi);
 	int ret, tmp = 1;
 	static const u32 sfdr_optim_regs[] = {
 		0x16, 0x18, 0x19, 0x1A, 0x30, 0x11A, 0x934, 0x935
 	};
 	u32 sfdr_optim_vals[ARRAY_SIZE(sfdr_optim_regs)];
-
-	ret = ad9680_request_clks(conv);
-	if (ret)
-		return ret;
 
 #ifdef CONFIG_OF
 	if (spi->dev.of_node)
@@ -874,30 +874,31 @@ static int ad9680_setup(struct spi_device *spi, bool ad9234)
 	if (ret)
 		return ret;
 
-	link_config.jesd204_config.num_lanes = 4;
 #if 0
-	for (i = 0; i < link_config.jesd204_config.num_lanes; i++) {
+	link_config.jesd204_link.num_lanes = 4;
+	for (i = 0; i < link_config.jesd204_link.num_lanes; i++) {
 		link_config.lane_ilid[i] = i;
 		link_config.lane_mux[i] = i;
 	}
-#endif
-	link_config.jesd204_config.num_converters = 2;
-	link_config.jesd204_config.octets_per_frame = 1;
-	link_config.jesd204_config.frames_per_multiframe = 32;
-	link_config.jesd204_config.converter_resolution = ad9234 ? 12 : 14;
-	link_config.jesd204_config.bits_per_sample = 16;
+
+	link_config.jesd204_link.num_converters = 2;
+	link_config.jesd204_link.octets_per_frame = 1;
+	link_config.jesd204_link.frames_per_multiframe = 32;
+	link_config.jesd204_link.converter_resolution = ad9234 ? 12 : 14;
+	link_config.jesd204_link.bits_per_sample = 16;
 	link_config.scrambling = true;
 
 	if (conv->sysref_clk) {
-		link_config.jesd204_config.subclass = 1;
+		link_config.jesd204_link.subclass = 1;
 		link_config.sysref.mode = AD9680_SYSREF_CONTINUOUS;
 	} else {
-		link_config.jesd204_config.subclass = 0;
+		link_config.jesd204_link.subclass = 0;
 		link_config.sysref.mode = AD9680_SYSREF_DISABLED;
 	}
 
 	link_config.sysref.capture_falling_edge = true;
 	link_config.sysref.valid_falling_edge = false;
+#endif
 
 	return 0;
 }
@@ -1025,7 +1026,26 @@ static int ad9680_request_fd_irqs(struct axiadc_converter *conv)
 	return 0;
 }
 static const struct jesd204_dev_ops jesd204_ad9680_ops = {
+	.init_clocks = ad9680_jesd204_init_clks,
+	.disable_clocks = ad9680_jesd204_disable_clks,
+	.enable_clocks = ad9680_jesd204_enable_clks,
 	.setup_link = ad9680_jesd204_setup_link,
+	.disable_link = ad9680_jesd204_disable_link,
+	.enable_link = ad9680_jesd204_enable_link,
+};
+
+static const struct jesd204_link ad9680_jesd204_links[] = {
+	{
+		.num_lanes = 4,
+		.num_converters = 2,
+		.octets_per_frame = 1,
+		.frames_per_multiframe = 32,
+		.converter_resolution = 14,
+		.bits_per_sample = 16,
+		.scrambling = true,
+		.subclass = 1,
+		.bid = 1,
+	},
 };
 
 static int ad9680_post_setup(struct iio_dev *indio_dev)
@@ -1047,6 +1067,8 @@ static int ad9680_post_setup(struct iio_dev *indio_dev)
 
 static const struct jesd204_dev_data jesd204_ad9680_init = {
 	.ops = &jesd204_ad9680_ops,
+	.links = ad9680_jesd204_links,
+	.num_links = ARRAY_SIZE(ad9680_jesd204_links),
 };
 
 static int ad9680_probe(struct spi_device *spi)
