@@ -83,7 +83,7 @@
 		jesd204-inputs = <&dac0_ad9144>;
 	};
 
-	axi_ad9144_jesd: axi-jesd204-tx@44a90000 {
+	axi_ad9144_jesd: axi-ad9144-jesd204-tx@44a90000 {
 		compatible = "adi,axi-jesd204-tx-1.0";
 		reg = <0x44a90000 0x1000>;
 
@@ -118,7 +118,7 @@
 		jesd204-inputs = <&adc0_ad9680>;
 	};
 
-	axi_ad9680_jesd: axi-jesd204-rx@44aa0000 {
+	axi_ad9680_jesd: axi-ad9680-jesd204-rx@44aa0000 {
 		compatible = "adi,axi-jesd204-rx-1.0";
 		reg = <0x44aa0000 0x1000>;
 
@@ -138,7 +138,7 @@
 		jesd204-inputs = <&axi_ad9680_adxcvr 1>, <&axi_ad9680_adxcvr 0>;
 	};
 
-	axi_ad9680_adxcvr: axi-adxcvr-rx@44a50000 {
+	axi_ad9680_adxcvr: axi-ad9680-adxcvr-rx@44a50000 {
 		compatible = "adi,axi-adxcvr-1.0";
 		reg = <0x44a50000 0x1000>;
 
@@ -158,7 +158,7 @@
 		jesd204-inputs = <&clk0_ad9523 4>;
 	};
 
-	axi_ad9144_adxcvr: axi-adxcvr-tx@44a60000 {
+	axi_ad9144_adxcvr: axi-ad9144-adxcvr-tx@44a60000 {
 		compatible = "adi,axi-adxcvr-1.0";
 		reg = <0x44a60000 0x1000>;
 
