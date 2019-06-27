@@ -85,14 +85,12 @@ struct jesd204_dev {
 	struct device_node		*np;
 	struct kref			ref;
 
+	struct attribute_group		sysfs_attr_group;
+
 	struct jesd204_dev_con_out	**inputs;
 	unsigned int			inputs_count;
 	struct list_head		outputs;
 	unsigned int			outputs_count;
-
-	const struct jesd204_link	*init_links;
-	struct jesd204_link		*cur_links;
-	unsigned int			num_links;
 };
 
 /**
@@ -123,6 +121,10 @@ struct jesd204_dev_top {
 
 	enum jesd204_dev_state		cur_state;
 	int				error;
+
+	const struct jesd204_link	*init_links;
+	struct jesd204_link		*cur_links;
+	unsigned int			num_links;
 };
 
 static inline struct jesd204_dev_top *jesd204_dev_top_dev(
@@ -139,5 +141,10 @@ static inline bool of_dev_is_jesd204_dev(struct device *dev)
 		return false;
 	return of_property_read_bool(dev->of_node, "jesd204-device");
 }
+
+const char *jesd204_state_str(enum jesd204_dev_state state);
+
+int jesd204_dev_create_sysfs(struct jesd204_dev *jdev);
+void jesd204_dev_destroy_sysfs(struct jesd204_dev *jdev);
 
 #endif /* _JESD204_PRIV_H_ */

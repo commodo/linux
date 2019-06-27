@@ -29,7 +29,7 @@ typedef int (*jesd204_cb_con_priv)(struct jesd204_dev *jdev,
 				   struct jesd204_dev_con_out *con,
 				   void *data);
 
-static const char *jesd204_state_str(enum jesd204_dev_state state)
+const char *jesd204_state_str(enum jesd204_dev_state state)
 {
 	switch (state) {
 	case JESD204_STATE_ERROR:
@@ -863,17 +863,23 @@ struct jesd204_dev *jesd204_dev_register(struct device *dev,
 	if (ret)
 		goto err_put_device;
 
+	ret = jesd204_dev_create_sysfs(jdev);
+	if (ret)
+		goto err_put_device;
+
 	ret = jesd204_dev_run_state_change(jdev,
 					   JESD204_STATE_INITIALIZED,
 					   JESD204_STATE_PROBED,
 					   jesd204_dev_probed_cb, NULL,
 					   jesd204_dev_probe_done);
 	if (ret)
-		goto err_put_device;
+		goto err_destroy_sysfs;
 
 	mutex_unlock(&jesd204_device_list_lock);
 
 	return jdev;
+err_destroy_sysfs:
+	jesd204_dev_destroy_sysfs(jdev);
 err_put_device:
 	put_device(dev);
 err_unlock:
@@ -927,8 +933,10 @@ static void __jesd204_dev_release(struct kref *ref)
 
 	mutex_lock(&jesd204_device_list_lock);
 
-	if (jdev->dev)
+	if (jdev->dev) {
+		jesd204_dev_destroy_sysfs(jdev);
 		put_device(jdev->dev);
+	}
 
 	if (jdev->is_top) {
 		jdev_top = jesd204_dev_top_dev(jdev);

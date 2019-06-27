@@ -4,4 +4,4 @@
 #
 
 obj-$(CONFIG_JESD204) += jesd204.o
-jesd204-y := jesd204-core.o
+jesd204-y := jesd204-core.o jesd204-sysfs.o
