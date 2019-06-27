@@ -21,6 +21,11 @@ enum jesd204_dev_state {
 	JESD204_STATE_UNINIT = 0,
 	JESD204_STATE_INITIALIZED,
 	JESD204_STATE_PROBED,
+	JESD204_STATE_CHECK_LINKS_CAPS,
+	JESD204_STATE_INIT_CLOCKS,
+	JESD204_STATE_SETUP_LINKS,
+	JESD204_STATE_ENABLE_CLOCKS,
+	JESD204_STATE_ENABLE_LINKS,
 };
 
 typedef int (*jesd204_cb_priv)(struct jesd204_dev *jdev, void *data); 
@@ -84,6 +89,10 @@ struct jesd204_dev {
 	unsigned int			inputs_count;
 	struct list_head		outputs;
 	unsigned int			outputs_count;
+
+	const struct jesd204_link	*init_links;
+	struct jesd204_link		*cur_links;
+	unsigned int			num_links;
 };
 
 /**

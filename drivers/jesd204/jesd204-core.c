@@ -40,6 +40,16 @@ static const char *jesd204_state_str(enum jesd204_dev_state state)
 		return "initialized";
 	case JESD204_STATE_PROBED:
 		return "probed";
+	case JESD204_STATE_CHECK_LINKS_CAPS:
+		return "check_links_caps";
+	case JESD204_STATE_INIT_CLOCKS:
+		return "init_clocks";
+	case JESD204_STATE_SETUP_LINKS:
+		return "setup_links";
+	case JESD204_STATE_ENABLE_CLOCKS:
+		return "enable_clocks";
+	case JESD204_STATE_ENABLE_LINKS:
+		return "enable_links";
 	default:
 		return "<unknown>";
 	}
@@ -545,6 +555,168 @@ unlock:
 	return ret;
 }
 
+static int jesd204_dev_enable_links_cb(struct jesd204_dev *jdev,
+				       struct jesd204_dev_con_out *con,
+				       void *data)
+{
+	struct jesd204_dev_top *jdev_top = jesd204_dev_top_dev(jdev);
+	int ret, link_num;
+
+	if (!jdev_top) {
+		if (!con || !con->jdev_top)
+			return -EFAULT;
+		jdev_top = con->jdev_top;
+	}
+
+	if (!jdev_top->num_links || !jdev_top->cur_links)
+		return JESD204_STATE_CHANGE_DONE;
+
+	if (!jdev->ops || !jdev->ops->enable_clocks)
+		return JESD204_STATE_CHANGE_DONE;
+
+	for (link_num = 0; link_num < jdev_top->num_links; link_num++) {
+		ret = jdev->ops->enable_link(jdev, link_num);
+		if (ret != JESD204_STATE_CHANGE_DONE)
+			return ret;
+	}
+
+	return JESD204_STATE_CHANGE_DONE;
+}
+
+/* JESD204 links should be enabled and running when getting here */
+static int jesd204_dev_enable_links_done(struct jesd204_dev *jdev)
+{
+	dev_info(jdev->dev, "JESD204 links enabled\n");
+	return 0;
+}
+
+/* Hooks for ENABLE_CLOCKS -> ENABLE_LINKS transition */
+static int jesd204_dev_enable_clocks_cb(struct jesd204_dev *jdev,
+					struct jesd204_dev_con_out *con,
+					void *data)
+{
+	if (!jdev->ops || !jdev->ops->enable_clocks)
+		return JESD204_STATE_CHANGE_DONE;
+	return jdev->ops->enable_clocks(jdev);
+}
+
+static int jesd204_dev_enable_clocks_done(struct jesd204_dev *jdev)
+{
+	return jesd204_dev_run_state_change(jdev,
+					    JESD204_STATE_ENABLE_CLOCKS,
+					    JESD204_STATE_ENABLE_LINKS,
+					    jesd204_dev_enable_links_cb,
+					    NULL,
+					    jesd204_dev_enable_links_done);
+}
+
+/* Hooks for SETUP_LINKS -> ENABLE_CLOCKS transition */
+static int jesd204_dev_setup_link_cb(struct jesd204_dev *jdev,
+				     struct jesd204_dev_con_out *con,
+				     void *data)
+{
+	struct jesd204_dev_top *jdev_top = jesd204_dev_top_dev(jdev);
+	int ret, link_num;
+
+	if (!jdev_top) {
+		if (!con || !con->jdev_top)
+			return -EFAULT;
+		jdev_top = con->jdev_top;
+	}
+
+	if (!jdev_top->num_links || !jdev_top->cur_links)
+		return JESD204_STATE_CHANGE_DONE;
+
+	if (!jdev->ops || !jdev->ops->setup_link)
+		return JESD204_STATE_CHANGE_DONE;
+
+	for (link_num = 0; link_num < jdev_top->num_links; link_num++) {
+		ret = jdev->ops->setup_link(jdev, link_num,
+					    &jdev_top->cur_links[link_num]);
+		if (ret != JESD204_STATE_CHANGE_DONE)
+			return ret;
+	}
+
+	return JESD204_STATE_CHANGE_DONE;
+}
+
+static int jesd204_dev_setup_links_done(struct jesd204_dev *jdev)
+{
+	return jesd204_dev_run_state_change(jdev,
+					    JESD204_STATE_SETUP_LINKS,
+					    JESD204_STATE_ENABLE_CLOCKS,
+					    jesd204_dev_enable_clocks_cb,
+					    NULL,
+					    jesd204_dev_enable_clocks_done);
+}
+
+/* Hooks for INIT_CLOCKS -> SETUP_LINKS transition */
+static int jesd204_dev_init_clocks_cb(struct jesd204_dev *jdev,
+				      struct jesd204_dev_con_out *con,
+				      void *data)
+{
+	int ret;
+
+	if (!jdev->ops || !jdev->ops->init_clocks)
+		return JESD204_STATE_CHANGE_DONE;
+
+	ret = jdev->ops->init_clocks(jdev);
+	/* FIXME: see about this; maybe a clock notifier or something.
+	   In some setups, this could fail
+	 */
+	if (ret < 0 && (ret == -EPROBE_DEFER))
+		return JESD204_STATE_CHANGE_STARTED;
+
+	return ret;
+}
+
+static int jesd204_dev_init_clocks_done(struct jesd204_dev *jdev)
+{
+	return jesd204_dev_run_state_change(jdev,
+					    JESD204_STATE_INIT_CLOCKS,
+					    JESD204_STATE_SETUP_LINKS,
+					    jesd204_dev_setup_link_cb,
+					    NULL,
+					    jesd204_dev_setup_links_done);
+}
+
+/* Hooks for CHECK_LINKS_CAPS -> INIT_CLOCKS transition */
+static int jesd204_dev_check_links_caps_cb(struct jesd204_dev *jdev,
+					   struct jesd204_dev_con_out *con,
+					   void *data)
+{
+	struct jesd204_dev_top *jdev_top = jesd204_dev_top_dev(jdev);
+	int link_num;
+
+	if (!jdev_top) {
+		if (!con || !con->jdev_top)
+			return -EFAULT;
+		jdev_top = con->jdev_top;
+	}
+
+	if (!jdev->ops || !jdev->ops->link_supported)
+		return JESD204_STATE_CHANGE_DONE;
+
+	for (link_num = 0; link_num < jdev_top->num_links; link_num++) {
+		if (!jdev->ops->link_supported(jdev, link_num,
+					       &jdev_top->cur_links[link_num]))
+			return -EINVAL;
+	}
+
+	return JESD204_STATE_CHANGE_DONE;
+}
+
+static int jesd204_dev_check_links_caps_done(struct jesd204_dev *jdev)
+{
+	return jesd204_dev_run_state_change(jdev,
+					    JESD204_STATE_CHECK_LINKS_CAPS,
+					    JESD204_STATE_INIT_CLOCKS,
+					    jesd204_dev_init_clocks_cb,
+					    NULL,
+					    jesd204_dev_init_clocks_done);
+}
+
+/* Hooks for PROBED -> CHECK_LINKS_CAPS transition */
 static int jesd204_dev_probed_cb(struct jesd204_dev *jdev,
 				 struct jesd204_dev_con_out *con,
 				 void *data)
@@ -556,7 +728,12 @@ static int jesd204_dev_probed_cb(struct jesd204_dev *jdev,
 
 static int jesd204_dev_probe_done(struct jesd204_dev *jdev)
 {
-	return 0;
+	return jesd204_dev_run_state_change(jdev,
+					    JESD204_STATE_PROBED,
+					    JESD204_STATE_CHECK_LINKS_CAPS,
+					    jesd204_dev_check_links_caps_cb,
+					    NULL,
+					    jesd204_dev_check_links_caps_done);
 }
 
 struct jesd204_dev *jesd204_dev_register(struct device *dev,

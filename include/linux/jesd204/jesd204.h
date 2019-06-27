@@ -21,9 +21,28 @@ enum jesd204_state_change_result {
 typedef int (*jesd204_cb)(struct jesd204_dev *jdev);
 
 /**
+ * struct jesd204_link - JESD204 link configuration settings
+ */
+struct jesd204_link {
+};
+
+/**
  * struct jesd204_dev_ops - JESD204 device operations
  */
 struct jesd204_dev_ops {
+	int (*init_clocks)(struct jesd204_dev *jdev);
+	int (*disable_clocks)(struct jesd204_dev *jdev);
+	int (*enable_clocks)(struct jesd204_dev *jdev);
+	bool (*link_supported)(struct jesd204_dev *jdev,
+			       unsigned int link_id,
+			       struct jesd204_link *lnk);
+	int (*setup_link)(struct jesd204_dev *jdev,
+			  unsigned int link_id,
+			  struct jesd204_link *lnk);
+	int (*disable_link)(struct jesd204_dev *jdev,
+			    unsigned int link_id);
+	int (*enable_link)(struct jesd204_dev *jdev,
+			   unsigned int link_id);
 };
 
 /**
