@@ -24,6 +24,24 @@ typedef int (*jesd204_cb)(struct jesd204_dev *jdev);
  * struct jesd204_link - JESD204 link configuration settings
  */
 struct jesd204_link {
+	u64 sample_rate;
+
+	u8 num_lanes;
+	u8 num_converters;
+	u8 octets_per_frame;
+	u8 frames_per_multiframe;
+
+	u8 bits_per_sample;
+
+	u8 converter_resolution;
+	u8 subclass;
+
+	u8 did;
+	u8 bid;
+
+	bool scrambling;
+
+	u8 *lane_ids;
 };
 
 /**
@@ -51,6 +69,8 @@ struct jesd204_dev_ops {
  */
 struct jesd204_dev_data {
 	const struct jesd204_dev_ops			*ops;
+	const struct jesd204_link			*links;
+	unsigned int					num_links;
 };
 
 #if IS_ENABLED(CONFIG_JESD204)
