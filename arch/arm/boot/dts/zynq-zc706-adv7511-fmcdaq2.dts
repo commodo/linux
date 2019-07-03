@@ -78,9 +78,11 @@
 		spibus-connected = <&dac0_ad9144>;
 		adi,axi-pl-fifo-enable;
 
+/*
 		jesd204-device;
 		#jesd204-cells = <0>;
 		jesd204-inputs = <&dac0_ad9144>;
+*/
 	};
 
 	axi_ad9144_jesd: axi-ad9144-jesd204-tx@44a90000 {
@@ -100,10 +102,11 @@
 
 		#clock-cells = <0>;
 		clock-output-names = "jesd_dac_lane_clk";
-
+/*
 		jesd204-device;
 		#jesd204-cells = <0>;
 		jesd204-inputs = <&axi_ad9144_adxcvr 1>, <&axi_ad9144_adxcvr 0>;
+*/
 	};
 
 	axi_ad9680_core: axi-ad9680-hpc@44a10000 {
@@ -172,9 +175,11 @@
 		adi,out-clk-select = <4>;
 		adi,use-lpm-enable;
 
+/*
 		jesd204-device;
 		#jesd204-cells = <1>;
 		jesd204-inputs = <&clk0_ad9523 9>;
+*/
 	};
 };
 

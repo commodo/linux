@@ -124,10 +124,12 @@
 		clocks = <&axi_ad9144_jesd>, <&clk0_ad9523 1>, <&clk0_ad9523 8>;
 		clock-names = "jesd_dac_clk", "dac_clk", "dac_sysref";
 
+/*
 		jesd204-device;
 		jesd204-top-device;
 		#jesd204-cells = <0>;
 		jesd204-inputs = <&axi_ad9144_jesd>, <&clk0_ad9523 1>, <&clk0_ad9523 8>;
+*/
 	};
 
 	adc0_ad9680: ad9680@2 {

@@ -190,6 +190,7 @@ struct axiadc_chip_info {
 
 struct axiadc_state {
 	struct device 			*dev_spi;
+	struct jesd204_dev		*jdev; 
 	struct iio_info			iio_info;
 	struct clk 			*clk;
 	size_t				regs_size;
@@ -213,6 +214,8 @@ struct axiadc_state {
 
 struct axiadc_converter {
 	struct spi_device 	*spi;
+	/* FIXME: this can cause confusion with axiadc_state, but we need this here as well */
+	struct jesd204_dev	*jdev;
 	struct clk 		*clk;
 	struct clock_scale		adc_clkscale;
 	struct clk		*lane_clk;
