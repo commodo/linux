@@ -37,6 +37,23 @@ struct axiadc_core_info {
 	unsigned int version;
 };
 
+unsigned int axiadc_pcore_ver(struct axiadc_state *st)
+{
+	if (!st)
+		return 0;
+	if (!st->pcore_version)
+		st->pcore_version = axiadc_read(st, ADI_AXI_REG_VERSION);
+	return st->pcore_version;
+}
+EXPORT_SYMBOL(axiadc_pcore_ver);
+
+unsigned int axiadc_pcore_ver_major(struct axiadc_state *st)
+{
+	unsigned int ver = axiadc_pcore_ver(st);
+	return ADI_AXI_PCORE_VER_MAJOR(ver);
+}
+EXPORT_SYMBOL(axiadc_pcore_ver_major);
+
 static int axiadc_chan_to_regoffset(struct iio_chan_spec const *chan)
 {
 	if (chan->modified)
@@ -49,7 +66,7 @@ int axiadc_set_pnsel(struct axiadc_state *st, int channel, enum adc_pn_sel sel)
 {
 	unsigned reg;
 
-	if (ADI_AXI_PCORE_VER_MAJOR(st->pcore_version) > 7) {
+	if (axiadc_pcore_ver_major(st) > 7) {
 		reg = axiadc_read(st, ADI_REG_CHAN_CNTRL_3(channel));
 		reg &= ~ADI_ADC_PN_SEL(~0);
 		reg |= ADI_ADC_PN_SEL(sel);
@@ -79,7 +96,7 @@ enum adc_pn_sel axiadc_get_pnsel(struct axiadc_state *st,
 {
 	unsigned val;
 
-	if (ADI_AXI_PCORE_VER_MAJOR(st->pcore_version) > 7) {
+	if (axiadc_pcore_ver_major(st) > 7) {
 		const char *ident[] = {"PN9", "PN23A", "UNDEF", "UNDEF",
 				"PN7", "PN15", "PN23", "PN31", "UNDEF", "PN_CUSTOM"};
 
@@ -836,9 +853,7 @@ static int axiadc_probe(struct platform_device *pdev)
 	mdelay(10);
 	axiadc_write(st, ADI_REG_RSTN, ADI_RSTN | ADI_MMCM_RSTN);
 
-	st->pcore_version = axiadc_read(st, ADI_AXI_REG_VERSION);
-
-	if (ADI_AXI_PCORE_VER_MAJOR(st->pcore_version) >
+	if (axiadc_pcore_ver_major(st) >
 		ADI_AXI_PCORE_VER_MAJOR(info->version)) {
 		dev_err(&pdev->dev, "Major version mismatch between PCORE and driver. Driver expected %d.%.2d.%c, PCORE reported %d.%.2d.%c\n",
 			ADI_AXI_PCORE_VER_MAJOR(info->version),

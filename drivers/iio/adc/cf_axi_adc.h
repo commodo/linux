@@ -340,6 +340,9 @@ static inline void axiadc_idelay_set(struct axiadc_state *st,
 	}
 }
 
+unsigned int axiadc_pcore_ver(struct axiadc_state *st);
+unsigned int axiadc_pcore_ver_major(struct axiadc_state *st);
+
 int axiadc_set_pnsel(struct axiadc_state *st, int channel, enum adc_pn_sel sel);
 enum adc_pn_sel axiadc_get_pnsel(struct axiadc_state *st,
 			       int channel, const char **name);

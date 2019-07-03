@@ -379,7 +379,7 @@ static int ad9361_iodelay_set(struct axiadc_state *st, unsigned lane,
 			      unsigned val, bool tx)
 {
 	if (tx) {
-		if (ADI_AXI_PCORE_VER_MAJOR(st->pcore_version) > 8)
+		if (axiadc_pcore_ver_major(st) > 8)
 			axiadc_write(st, 0x4000 + ADI_REG_DELAY(lane), val);
 		else
 			return -ENODEV;

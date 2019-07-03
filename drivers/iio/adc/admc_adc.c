@@ -103,6 +103,7 @@ static int axiadc_probe(struct platform_device *pdev)
 	const struct axiadc_chip_info *chip_info;
 	struct iio_dev *indio_dev;
 	struct axiadc_state *st;
+	unsigned int pcore_ver;
 	struct resource *mem;
 	int ret;
 
@@ -125,8 +126,6 @@ static int axiadc_probe(struct platform_device *pdev)
 	axiadc_write(st, ADI_REG_RSTN, 0);
 	axiadc_write(st, ADI_REG_RSTN, ADI_RSTN);
 
-	st->pcore_version = axiadc_read(st, ADI_AXI_REG_VERSION);
-
 	indio_dev->dev.parent = &pdev->dev;
 	indio_dev->name = pdev->dev.of_node->name;
 	indio_dev->modes = INDIO_DIRECT_MODE;
@@ -145,8 +144,9 @@ static int axiadc_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_unconfigure_ring;
 
+	pcore_ver = axiadc_pcore_ver(st);
 	dev_info(&pdev->dev, "ADI AIM (0x%X) at 0x%08llX mapped to 0x%p, probed ADC %s as %s\n",
-		 st->pcore_version,
+		 pcore_ver,
 		 (unsigned long long)mem->start, st->regs, chip_info->name,
 		 axiadc_read(st, ADI_AXI_REG_ID) ? "SLAVE" : "MASTER");
 
