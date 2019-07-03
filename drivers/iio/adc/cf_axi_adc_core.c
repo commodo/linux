@@ -37,6 +37,69 @@ struct axiadc_core_info {
 	unsigned int version;
 };
 
+struct axiadc_state {
+	struct device 			*dev_spi;
+	struct iio_info			iio_info;
+	struct clk 			*clk;
+	size_t				regs_size;
+	void __iomem			*regs;
+	void __iomem			*slave_regs;
+	unsigned				max_usr_channel;
+	unsigned			adc_def_output_mode;
+	unsigned			max_count;
+	unsigned			id;
+	unsigned			pcore_version;
+	unsigned			decimation_factor;
+	unsigned int                    oversampling_ratio;
+	bool				dp_disable;
+	unsigned long long		adc_clk;
+	unsigned			have_slave_channels;
+
+	struct iio_hw_consumer		*frontend;
+
+	struct iio_chan_spec		channels[AXIADC_MAX_CHANNEL];
+};
+
+void axiadc_write(struct axiadc_state *st, unsigned reg, unsigned val)
+{
+	iowrite32(val, st->regs + reg);
+}
+EXPORT_SYMBOL(axiadc_write);
+
+unsigned int axiadc_read(struct axiadc_state *st, unsigned reg)
+{
+	return ioread32(st->regs + reg);
+}
+EXPORT_SYMBOL(axiadc_read);
+
+void axiadc_slave_write(struct axiadc_state *st, unsigned reg, unsigned val)
+{
+	iowrite32(val, st->slave_regs + reg);
+}
+EXPORT_SYMBOL(axiadc_slave_write);
+
+unsigned int axiadc_slave_read(struct axiadc_state *st, unsigned reg)
+{
+	return ioread32(st->slave_regs + reg);
+}
+EXPORT_SYMBOL(axiadc_slave_read);
+
+void axiadc_idelay_set(struct axiadc_state *st,
+		       unsigned int lane,
+		       unsigned int val)
+{
+	if (axiadc_pcore_ver_major(st) > 8) {
+		axiadc_write(st, ADI_REG_DELAY(lane), val);
+	} else {
+		axiadc_write(st, ADI_REG_DELAY_CNTRL, 0);
+		axiadc_write(st, ADI_REG_DELAY_CNTRL,
+				ADI_DELAY_ADDRESS(lane)
+				| ADI_DELAY_WDATA(val)
+				| ADI_DELAY_SEL);
+	}
+}
+EXPORT_SYMBOL(axiadc_idelay_set);
+
 unsigned int axiadc_pcore_ver(struct axiadc_state *st)
 {
 	if (!st)

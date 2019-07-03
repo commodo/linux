@@ -175,6 +175,8 @@ enum adc_data_sel {
 #include <linux/spi/spi.h>
 #include <linux/clk/clkscale.h>
 
+struct axiadc_state;
+
 struct axiadc_chip_info {
 	char				*name;
 	unsigned			num_channels;
@@ -185,31 +187,6 @@ struct axiadc_chip_info {
 	int				max_testmode;
 	unsigned long			max_rate;
 	struct iio_chan_spec		channel[AXIADC_MAX_CHANNEL];
-};
-
-struct axiadc_state {
-	struct device 			*dev_spi;
-	struct iio_info			iio_info;
-	struct clk 			*clk;
-	struct gpio_desc		*gpio_decimation;
-	size_t				regs_size;
-	void __iomem			*regs;
-	void __iomem			*slave_regs;
-	unsigned				max_usr_channel;
-	unsigned			adc_def_output_mode;
-	unsigned			max_count;
-	unsigned			id;
-	unsigned			pcore_version;
-	unsigned			decimation_factor;
-	unsigned int                    oversampling_ratio;
-	bool				dp_disable;
-	unsigned long long		adc_clk;
-	unsigned			have_slave_channels;
-	bool				additional_channel;
-
-	struct iio_hw_consumer		*frontend;
-
-	struct iio_chan_spec		channels[AXIADC_MAX_CHANNEL];
 };
 
 struct axiadc_converter {
@@ -305,40 +282,14 @@ struct axiadc_spidev {
  * IO accessors
  */
 
-static inline void axiadc_write(struct axiadc_state *st, unsigned reg, unsigned val)
-{
-	iowrite32(val, st->regs + reg);
-}
+void axiadc_write(struct axiadc_state *st, unsigned reg, unsigned val);
+unsigned int axiadc_read(struct axiadc_state *st, unsigned reg);
+void axiadc_slave_write(struct axiadc_state *st, unsigned reg, unsigned val);
+unsigned int axiadc_slave_read(struct axiadc_state *st, unsigned reg);
 
-static inline unsigned int axiadc_read(struct axiadc_state *st, unsigned reg)
-{
-	return ioread32(st->regs + reg);
-}
-
-static inline void axiadc_slave_write(struct axiadc_state *st, unsigned reg, unsigned val)
-{
-	iowrite32(val, st->slave_regs + reg);
-}
-
-static inline unsigned int axiadc_slave_read(struct axiadc_state *st, unsigned reg)
-{
-	return ioread32(st->slave_regs + reg);
-}
-
-
-static inline void axiadc_idelay_set(struct axiadc_state *st,
-				unsigned lane, unsigned val)
-{
-	if (ADI_AXI_PCORE_VER_MAJOR(st->pcore_version) > 8) {
-		axiadc_write(st, ADI_REG_DELAY(lane), val);
-	} else {
-		axiadc_write(st, ADI_REG_DELAY_CNTRL, 0);
-		axiadc_write(st, ADI_REG_DELAY_CNTRL,
-				ADI_DELAY_ADDRESS(lane)
-				| ADI_DELAY_WDATA(val)
-				| ADI_DELAY_SEL);
-	}
-}
+void axiadc_idelay_set(struct axiadc_state *st,
+		       unsigned int lane,
+		       unsigned int val);
 
 unsigned int axiadc_pcore_ver(struct axiadc_state *st);
 unsigned int axiadc_pcore_ver_major(struct axiadc_state *st);
