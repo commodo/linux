@@ -140,6 +140,7 @@ err_put:
 err:
 	return ret;
 }
+EXPORT_SYMBOL(uio_dmabuf_map);
 
 long uio_dmabuf_unmap(struct uio_device *dev, struct list_head *dbufs,
 		      struct mutex *dbufs_lock, void __user *user_args)
@@ -189,6 +190,7 @@ err_unlock:
 err:
 	return ret;
 }
+EXPORT_SYMBOL(uio_dmabuf_unmap);
 
 int uio_dmabuf_cleanup(struct uio_device *dev, struct list_head *dbufs,
 		       struct mutex *dbufs_lock)
@@ -208,3 +210,4 @@ int uio_dmabuf_cleanup(struct uio_device *dev, struct list_head *dbufs,
 
 	return 0;
 }
+EXPORT_SYMBOL(uio_dmabuf_cleanup);
