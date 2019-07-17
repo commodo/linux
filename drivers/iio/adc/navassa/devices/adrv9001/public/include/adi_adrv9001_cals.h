@@ -76,7 +76,7 @@ extern "C" {
  * \retval ADI_ADI_COMMON_ACT_NO_ACTION           Function completed successfully, no action required
  */
 int32_t adi_adrv9001_InitCalsRun(adi_adrv9001_Device_t *device, 
-                                 int32_t(*Mcs_Requested)(),
+                                 int32_t(*Mcs_Requested)(void),
                                  adi_adrv9001_InitCals_t *initCals,
                                  uint32_t timeout_ms,
                                  uint8_t *errorFlag);

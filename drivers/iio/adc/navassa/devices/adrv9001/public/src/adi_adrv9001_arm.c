@@ -612,7 +612,7 @@ int32_t adi_adrv9001_arm_CmdStatusOpcode_Get(adi_adrv9001_Device_t *device, uint
 }
 
 int32_t adi_adrv9001_arm_CmdStatus_Wait(adi_adrv9001_Device_t *device,
-                                        int32_t (*callback)(),
+                                        int32_t (*callback)(void),
                                         uint8_t opCode,
                                         uint8_t *cmdStatusByte,
                                         uint32_t timeout_us,
@@ -1247,7 +1247,7 @@ int32_t adi_adrv9001_arm_Profile_Program(adi_adrv9001_Device_t *device)
 }
 
 int32_t adi_adrv9001_arm_System_Program(adi_adrv9001_Device_t *device,
-                                        int32_t(*Mcs_Requested)(),
+                                        int32_t(*Mcs_Requested)(void),
                                         uint8_t channelMask)
 {
     uint8_t extData[2] = { 0 };

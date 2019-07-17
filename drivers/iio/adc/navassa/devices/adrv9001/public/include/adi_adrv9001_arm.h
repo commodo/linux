@@ -386,7 +386,7 @@ int32_t adi_adrv9001_arm_SystemError_Get(adi_adrv9001_Device_t *device, uint8_t 
  /* FIXME: Vivek -  Need to keep an eye on all 'TODO' to make sure Tokelau changes are brought in */
  /* TODO: Need to review number of bits SPI regs per opcode */
 int32_t adi_adrv9001_arm_CmdStatus_Wait(adi_adrv9001_Device_t *device, 
-                                        int32_t(*callback)(),
+                                        int32_t(*callback)(void),
                                         uint8_t opCode,
                                         uint8_t *cmdStatusByte,
                                         uint32_t timeout_us,
@@ -437,7 +437,7 @@ int32_t adi_adrv9001_arm_CmdStatus_Wait(adi_adrv9001_Device_t *device,
  * \returns A code indicating success (ADI_COMMON_ACT_NO_ACTION) or the required action to recover
  */
 int32_t adi_adrv9001_arm_System_Program(adi_adrv9001_Device_t *device,
-                                        int32_t(*Mcs_Requested)(),
+                                        int32_t(*Mcs_Requested)(void),
                                         uint8_t channelMask);
     
 /**

@@ -44,7 +44,7 @@ static int16_t swSpiAddrBuff[SW_SPI_MAP_SIZE];
 static uint8_t swSpiInitialized = false;
 static uint8_t swSpiValBuff[SW_SPI_MAP_SIZE] = { 0 };
 
-void initAddrCache()
+void initAddrCache(void)
 {
     memset(swSpiAddrBuff, -1, SW_SPI_MAP_SIZE);
     swSpiInitialized = true;
