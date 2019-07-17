@@ -557,13 +557,20 @@ static int32_t adrv9001_PllCalcIntFracWords(adi_adrv9001_Device_t *device, adi_a
 
     ADI_NULL_PTR_RETURN(&device->common, pllStateSettings);
     
-    integerWord         =  (uint16_t)(pllStateSettings->vcoFreq_Hz / pllStateSettings->refClockFreq_Hz);
+#ifdef __KERNEL__
+    integerWord = (uint16_t)div_u64_rem(pllStateSettings->vcoFreq_Hz, pllStateSettings->refClockFreq_Hz, &fractionalRemainder);
+    /* +1 >> 1 is rounding (add .5) */
+    fractionalWord = (uint32_t) (((div_u64(((uint64_t)fractionalRemainder * (ADRV9001_CLK_PLL_MODULUS << 1u)),
+		pllStateSettings->refClockFreq_Hz)) + 1u) >> 1u);
+#else
+    integerWord = (uint16_t)(pllStateSettings->vcoFreq_Hz / pllStateSettings->refClockFreq_Hz);
     fractionalRemainder =  pllStateSettings->vcoFreq_Hz % pllStateSettings->refClockFreq_Hz;
 
     /* +1 >> 1 is rounding (add .5) */
     fractionalWord = (uint32_t) ( ( ( ( ( (uint64_t)fractionalRemainder  * (ADRV9001_CLK_PLL_MODULUS << 1u) )
-                                  / (uint64_t)pllStateSettings->refClockFreq_Hz) ) + 1u) >> 1u);
-   
+    / (uint64_t)pllStateSettings->refClockFreq_Hz) ) + 1u) >> 1u);
+#endif
+
     /* if fractionalWord rounded up and == PLL modulus, fix it */
     if (fractionalWord == ADRV9001_CLK_PLL_MODULUS)
     {
@@ -634,7 +641,7 @@ static uint32_t adrv9001_utils_ceilLog2U32(uint32_t x)
 */
 static int32_t adrv9001_PllUpdateTcCoef(adi_adrv9001_Device_t *device, adi_adrv9001_Init_t *init, adrv9001_PllSynthParam_t *pllStateSettings)
 {
-    uint64_t vcoMhz = pllStateSettings->vcoFreq_Hz / 1000000u;
+    uint64_t vcoMhz;
     uint32_t index = 0;
     uint32_t tabSize = 0;
     const adrv9001_TempCoef_t *pTempComp;
@@ -645,6 +652,12 @@ static int32_t adrv9001_PllUpdateTcCoef(adi_adrv9001_Device_t *device, adi_adrv9
                                                        { 10870u, 19000u, 5u, 3u, 20u } };
 
     ADI_NULL_PTR_RETURN(&device->common, pllStateSettings);
+
+#ifdef __KERNEL__
+    vcoMhz = div_u64(pllStateSettings->vcoFreq_Hz, 1000000u);
+#else
+    vcoMhz = pllStateSettings->vcoFreq_Hz / 1000000u;
+#endif
     
     pTempComp = PLL_TempCompRfPLL;
     tabSize =  sizeof(PLL_TempCompRfPLL) / sizeof(adrv9001_TempCoef_t);

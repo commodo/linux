@@ -924,7 +924,11 @@ int32_t adi_adrv9001_Tx_NcoFrequency_Set(adi_adrv9001_Device_t* device,
 
     /* '+1' and '>> 1' below are needed to round to the nearest integer*/
     tempResult = ((int64_t)((0 - ncoFrequency_Hz))) << 32;
-    tempResult = ( ( tempResult / txSampleRateDiv2_Hz ) + 1 );
+#ifdef __KERNEL__
+    tempResult = div_s64(tempResult, txSampleRateDiv2_Hz) + 1;
+#else
+    tempResult = (tempResult / txSampleRateDiv2_Hz) + 1;
+#endif
     tuneWord = (uint32_t)( tempResult >> 1 );
 
     /* FIXME: Vivek - NCO gain set/get are not found in Navassa; TBC */
