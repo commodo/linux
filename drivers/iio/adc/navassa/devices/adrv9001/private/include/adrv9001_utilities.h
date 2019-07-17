@@ -15,7 +15,12 @@
 #define _ADRV9001_UTILITIES_H_
 
 #include "adi_adrv9001_utilities_types.h"
+
+#ifdef __KERNEL__
+#include <linux/kernel.h>
+#else
 #include <stdio.h>
+#endif
 
 #define ADRV9001_MAX_FILE_BUFFER 128
 

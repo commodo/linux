@@ -12,6 +12,17 @@
 
 #define JSON_PARSING 1
 #ifdef JSON_PARSING 
+
+#ifdef __KERNEL__
+static inline int atoi(const char *str)
+{
+	long val;
+
+	kstrtol(str, 10, &val);
+	return val;
+}
+#endif
+
 #define ADI_ARRAY_LEN(arr) (sizeof(arr) / sizeof(arr[0]))
 
 #define ADI_IF_JSON_EQ(jsonBuffer, jsmnTok, token) \

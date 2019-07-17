@@ -12,9 +12,23 @@
 * see the "LICENSE.txt" file in this zip file.
 */
 
+#ifdef __KERNEL__
+#include <linux/kernel.h>
+#include <linux/slab.h>
+
+#ifndef free
+#define free kfree
+#endif
+
+#ifndef calloc
+#define calloc(n, s) kcalloc(n, s, GFP_KERNEL)
+#endif
+
+#else
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#endif
 
 #include "adi_adrv9001_user.h"
 #include "adi_common_macros.h"

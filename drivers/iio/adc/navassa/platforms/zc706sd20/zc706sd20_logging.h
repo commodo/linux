@@ -11,8 +11,14 @@
 #ifndef _ZC706SD20_LOGGING_H_
 #define _ZC706SD20_LOGGING_H_
 
+
+#ifdef __KERNEL__
+#include <linux/kernel.h>
+#else
 #include <stdio.h>
 #include <stdint.h>
+#endif
+
 #include "adi_platform_types.h"
 
 #ifdef __cplusplus

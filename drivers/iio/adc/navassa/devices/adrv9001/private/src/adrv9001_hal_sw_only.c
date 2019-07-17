@@ -29,8 +29,13 @@
 
 
 /* Header files related to libraries */
+#ifdef __KERNEL__
+#include <linux/kernel.h>
+#include <linux/string.h>
+#else
 #include <stdint.h>
 #include <string.h>
+#endif
 
 /* System header files */
 

@@ -39,8 +39,14 @@
 
 
 /* System header files */
+#ifdef __KERNEL__
+#include <linux/kernel.h>
+#include <linux/string.h>
+#else
 #include <string.h>
 #include <stdlib.h>
+#endif
+
 
 #ifdef _RELEASE_BUILD_
     #line __LINE__ "adi_adrv9001.c"

@@ -19,8 +19,13 @@
 */
 
 /* System header files */
+#ifdef __KERNEL__
+#include <linux/kernel.h>
+#include <linux/math64.h>
+#else
 #include <stdlib.h>
 #include <math.h>
+#endif
 
 /* "adi_adrv9001_user.h" contains the #define that other header file use */
 #include "adi_adrv9001_user.h"

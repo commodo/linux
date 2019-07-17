@@ -13,11 +13,17 @@
 
 #include "adi_adrv9001_user.h"
 #include "adrv9001_utilities.h"
+
+#ifdef __KERNEL__
+#include <linux/kernel.h>
+#else
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#endif
+
 #include "adi_adrv9001_error.h"
 #include "adi_adrv9001_arm.h"
 #include "adi_adrv9001_rx.h"

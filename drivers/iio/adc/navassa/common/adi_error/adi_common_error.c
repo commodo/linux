@@ -13,8 +13,13 @@
  * Released under the API license, for more information
  * see the "LICENSE.txt" file in this zip file.
  */
+
+#ifdef __KERNEL__
+#include <linux/kernel.h>
+#else
 #include <stdlib.h>
 #include <stdbool.h>
+#endif
 
 #include "adi_common_error.h"
 #include "adi_common_log.h"

@@ -7,8 +7,12 @@
 #ifndef __ADI_PLATFORM_TYPES_H__
 #define __ADI_PLATFORM_TYPES_H__
 
+#ifdef __KERNEL__
+#include <linux/kernel.h>
+#else
 #include <stdio.h>
 #include <stdint.h>
+#endif
 
 #define ADI_HAL_STRING_LENGTH 64
 #define ADI_HAL_MAX_LOG_LINE 1000
