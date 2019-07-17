@@ -9,6 +9,8 @@
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>
+#include <linux/spi/spi.h>
+#include <linux/gpio/consumer.h>
 #else
 #include <stdio.h>
 #include <stdint.h>
@@ -189,7 +191,10 @@ typedef struct adi_hal_Cfg
     adi_hal_HwResetCfg_t hwResetCfg;
     adi_hal_I2cCfg_t i2cCfg;
     adi_hal_TimerCfg_t timerCfg;
-    
+#ifdef __KERNEL__
+    struct spi_device *spi;
+    struct gpio_desc *reset_gpio;
+#endif
 } adi_hal_Cfg_t;
 
 #ifdef __cplusplus
