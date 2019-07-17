@@ -34,7 +34,14 @@
 #include "adi_adrv9001.h"
 #include "adrv9001_reg_addr_macros.h"
 
+#ifdef __KERNEL__
+int32_t adrv9001_SafeFileLoad(adi_adrv9001_Device_t *device, const char *filename, char **buffer, uint32_t *filelength)
+{
+	/* FIXME MH */
 
+	ADI_API_RETURN(device);
+}
+#else
 int32_t adrv9001_SafeFileLoad(adi_adrv9001_Device_t *device, const char *filename, char **buffer, uint32_t *filelength) 
 {
     FILE * fp = NULL;
@@ -124,6 +131,7 @@ int32_t adrv9001_SafeFileLoad(adi_adrv9001_Device_t *device, const char *filenam
     
     ADI_API_RETURN(device);
 }
+#endif
 
 int32_t adrv9001_RadioCtrlInit(adi_adrv9001_Device_t *device, adi_adrv9001_RadioCtrlInit_t *radioCtrlInit, uint8_t channelMask)
 {

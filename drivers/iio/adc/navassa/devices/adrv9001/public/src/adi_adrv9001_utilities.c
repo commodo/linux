@@ -339,6 +339,9 @@ int32_t adi_adrv9001_Utilities_DeviceProfile_Load(adi_adrv9001_Device_t *device,
 
 int32_t adi_adrv9001_Utilities_ArmImage_Load(adi_adrv9001_Device_t *device, const char *armImagePath)
 {
+#ifdef __KERNEL__ /* FIXME: Later */
+	return 0;
+#else
     static const size_t BIN_ELEMENT_SIZE = 1;
 
     int32_t recoveryAction = ADI_COMMON_ACT_NO_ACTION;
@@ -449,10 +452,14 @@ int32_t adi_adrv9001_Utilities_ArmImage_Load(adi_adrv9001_Device_t *device, cons
     }
 
     return recoveryAction;
+#endif
 }
 
 int32_t adi_adrv9001_Utilities_StreamImage_Load(adi_adrv9001_Device_t *device, const char *streamImagePath)
 {
+#ifdef __KERNEL__ /* FIXME: Later */
+	return 0;
+#else
     static const size_t BIN_ELEMENT_SIZE = 1;
 
     int32_t recoveryAction = ADI_COMMON_ACT_NO_ACTION;
@@ -558,6 +565,7 @@ int32_t adi_adrv9001_Utilities_StreamImage_Load(adi_adrv9001_Device_t *device, c
     }
 
     return recoveryAction;
+#endif
 }
 #endif
 
@@ -670,6 +678,9 @@ int32_t adi_adrv9001_InitDigitalLoad(adi_adrv9001_Device_t *device, adi_adrv9001
 
 int32_t adi_adrv9001_Utilities_RxGainTable_Load(adi_adrv9001_Device_t *device, const char *rxGainTablePath, uint32_t rxChannelMask)
 {
+#ifdef __KERNEL__ /* FIXME: Later */
+	return 0;
+#else
     static const uint8_t NUM_COLUMNS = 7;
 
     int32_t recoveryAction = ADI_COMMON_ACT_NO_ACTION;
@@ -949,10 +960,14 @@ int32_t adi_adrv9001_Utilities_RxGainTable_Load(adi_adrv9001_Device_t *device, c
     }
 
     return recoveryAction;
+#endif
 }
 
 int32_t adi_adrv9001_Utilities_TxAttenTable_Load(adi_adrv9001_Device_t *device, const char *txAttenTablePath, uint32_t txChannelMask)
 {
+#ifdef __KERNEL__ /* FIXME: Later */
+	return 0;
+#else
     static const uint8_t NUM_COLUMNS = 3;
 
     int32_t recoveryAction = ADI_COMMON_ACT_NO_ACTION;
@@ -1149,10 +1164,14 @@ int32_t adi_adrv9001_Utilities_TxAttenTable_Load(adi_adrv9001_Device_t *device, 
     }
 
     return recoveryAction;
+#endif
 }
 
 int32_t adi_adrv9001_Utilities_ArmMemory_Dump(adi_adrv9001_Device_t *device, const char *binaryFilename)
 {
+#ifdef __KERNEL__ /* FIXME: Later */
+	return 0;
+#else
     int32_t recoveryAction = ADI_COMMON_ACT_NO_ACTION;
     FILE *ofp;
     uint32_t byteCount = 0;
@@ -1351,6 +1370,7 @@ int32_t adi_adrv9001_Utilities_ArmMemory_Dump(adi_adrv9001_Device_t *device, con
     }
 
     ADI_API_RETURN(device);
+#endif
 }
 
 int32_t adi_adrv9001_InitRadioLoad(adi_adrv9001_Device_t *device, 
