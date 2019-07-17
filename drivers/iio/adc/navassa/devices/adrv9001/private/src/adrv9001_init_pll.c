@@ -25,6 +25,15 @@
 #include "adrv9001_bf_nvs_pll_mem_map.h"
 #include "adrv9001_bf_nvs_regmap_core.h"
 
+
+#ifdef __KERNEL__
+#include <linux/math64.h>
+#else
+#define DIV_ROUND_UP(x, y)		(((x) + (y) - 1) / (y))
+#define DIV_ROUND_CLOSEST(x, y)		(((x) + (y) / 2) / (y))
+#endif
+
+
 #ifdef _RELEASE_BUILD_
 #line __LINE__ "adrv9001_init_pll.c"
 #endif
@@ -52,6 +61,8 @@
 
 #define PLL_CAL_MAX_CNT_FAST                      (0x0011D1ul)
 #define PLL_CAL_MAX_CNT_NORMAL                    (0x030D3Ful)
+
+
 
 #if (LOOPFILTER_TABLE_LOOKUP == 1)
 /**
@@ -121,8 +132,9 @@ static int32_t adrv9001_PllFindBand(adi_adrv9001_Device_t *device, adi_adrv9001_
 /* Use for generating loop filter table, FIXME: TDAO - Remove after bringup */
 //#define ADRV9001_CALCULATE_LF 1
 
-#include <math.h>
+
 #ifdef ADRV9001_CALCULATE_LF
+#include <math.h>
 #define  DEF_PI     (3.1415926535897932f)
 
 #define ICP_UNITS               (110.0e-6f)
@@ -1485,7 +1497,7 @@ static int32_t adrv9001_PllRunVCOCal(adi_adrv9001_Device_t *device, uint32_t bas
 static int32_t adrv9001_PllTempUpdateTempComp(adi_adrv9001_Device_t *device, adi_adrv9001_Init_t *init, adrv9001_PllSynthParam_t *pllStateSettings)
 {
     int16_t  tcidac = 0, tchip = 0;  
-    float    working, tcidac_f = 0;
+    int32_t  working, tcidac_f = 0;
     adrv9001_BfNvsPllMemMapChanAddr_e baseAddr = ADRV9001_BF_CLK_PLL_LP;
 
     ADI_NULL_PTR_RETURN(&device->common, pllStateSettings);
@@ -1499,17 +1511,23 @@ static int32_t adrv9001_PllTempUpdateTempComp(adi_adrv9001_Device_t *device, adi
 
     /* convert temperature to the TCIdac setting: These equations are empirically generated
        and supplied by the H/W group based on data collected over temperature. */ 
-    working = ((float)tchip / 1.00f)
-               - (float)(ADRV9001_TEMP_SENSOR_DFL_OFFSET_CODE_VALUE + ADRV9001_KELVIN_TO_CELSIUS);
 
-    tcidac_f = ADRV9001_TCIDAC_125C + (ADRV9001_TCIDAC_MAX *.84f / 165.0f * (125.0f - working));
+    working = tchip - ADRV9001_TEMP_SENSOR_DFL_OFFSET_CODE_VALUE + ADRV9001_KELVIN_TO_CELSIUS;
+
+    /*
+     * tcidac_f = ADRV9001_TCIDAC_125C + (ADRV9001_TCIDAC_MAX *.84f / 165.0f * (125.0f - working));
+     * Rational approximation: 0.84/165 = 7 / 1375
+     */
+
+    tcidac_f = ADRV9001_TCIDAC_125C +
+               DIV_ROUND_CLOSEST(((ADRV9001_TCIDAC_MAX * (125 - working)) * 7), 1375);
 
     /* Need to clip tcidac to max/min extreems and convert to int value */
-    if (tcidac_f <= 0.0f)
+    if (tcidac_f <= 0)
     {
         tcidac = 0;
     }
-    else if (tcidac_f >= 4095.0f)
+    else if (tcidac_f >= 4095)
     {
         tcidac = 4095;
     }
@@ -2449,15 +2467,7 @@ static int32_t adrv9001_AdcTunerHw_WriteGScaleConst(adi_adrv9001_Device_t *devic
 */
 uint8_t adrv9001_AdcTunerHw_CalculatePtatBiasRcal(int16_t rcalDelta)
 {
-    float ftmp;
-    uint8_t rcalBias;
-
-    rcalDelta -= 128;
-    
-    ftmp = roundf(56.0f + ((float)rcalDelta / 2.3f) - 0.35f);
-    rcalBias = (uint8_t)ftmp;
-
-    return rcalBias;
+	return DIV_ROUND_CLOSEST(55650 + DIV_ROUND_CLOSEST(rcalDelta * 10000U, 23), 1000);
 }
 
 /**

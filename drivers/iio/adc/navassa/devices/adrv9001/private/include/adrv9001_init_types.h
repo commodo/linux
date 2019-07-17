@@ -33,8 +33,8 @@ extern "C" {
 #define ADRV9001_TEMP_SENSOR_DFL_OFFSET_CODE_VALUE (16u)   /* Default RTL offset code value */
 #define ADRV9001_KELVIN_TO_CELSIUS (273u)       /* Kelvin to Celsius conversion */
 
-#define ADRV9001_TCIDAC_125C       (328.0f)
-#define ADRV9001_TCIDAC_MAX        (4095.0f)
+#define ADRV9001_TCIDAC_125C       (328)
+#define ADRV9001_TCIDAC_MAX        (4095)
 
 /* Enumation for Coarse and Fine calibrations */
 typedef enum adrv9001_PllVcoCalType

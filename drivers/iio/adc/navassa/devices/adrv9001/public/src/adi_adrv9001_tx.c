@@ -25,6 +25,7 @@
 #else
 #include <stdlib.h>
 #include <math.h>
+#define DIV_ROUND_CLOSEST(x, y)	(((x) + (y) / 2) / (y))
 #endif
 
 /* "adi_adrv9001_user.h" contains the #define that other header file use */
@@ -1190,7 +1191,7 @@ int32_t adi_adrv9001_Tx_PaRamp_Configure(adi_adrv9001_Device_t *device,
     clkDivRatio = device->devStateInfo.clkDivideRatios.anaRefClockRatio;
     refClk_Hz = KILO_TO_BASE_UNIT(device->devStateInfo.deviceClock_kHz) >> clkDivRatio;
 
-    paRampDpClkDiv = round((float)refClk_Hz / (float)(KILO_TO_BASE_UNIT(paRampCfg->rampClock_kHz)));
+    paRampDpClkDiv = DIV_ROUND_CLOSEST(refClk_Hz, KILO_TO_BASE_UNIT(paRampCfg->rampClock_kHz));
 
     if (channel == ADI_CHANNEL_1)
     {

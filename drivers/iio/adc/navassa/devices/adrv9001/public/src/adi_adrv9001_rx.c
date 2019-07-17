@@ -660,6 +660,12 @@ int32_t adi_adrv9001_Rx_Rssi_Read(adi_adrv9001_Device_t *device,
                    sizeof(armReadBack),
                    ARM_MEM_READ_AUTOINCR)
 
+    /*
+     * Comment (MH):
+     * Why do we need floating point here?
+     * Cat't this just return the Value in milli dB?
+     */
+
     /* Read linearPower */
     linearPowerTemp = (uint64_t)((uint64_t)armReadBack[0] |
                                 ((uint64_t)armReadBack[1] << 8) |
