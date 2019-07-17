@@ -45,6 +45,7 @@
 #else
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #endif
 
 
@@ -694,41 +695,16 @@ int32_t adi_adrv9001_spi_Verify(adi_adrv9001_Device_t *device)
 int32_t adi_adrv9001_ApiVersionGet(adi_adrv9001_Device_t *device, adi_common_ApiVersion_t *apiVersion)
 {
     const char *version = ADI_ADRV9001_CURRENT_VERSION;
-    char *to_free = NULL;
-    char *token = NULL;
-    uint8_t ii = 0;
 
     ADI_API_ENTRY_PTR_EXPECT(device, apiVersion);
 
-    to_free = strdup(version);
-    while ((token = strsep(&to_free, ".")))
-    {
-        switch (ii)
-        {
-        case 0:
-            apiVersion->major = atoi(token);
-            break;
-        case 1:
-            apiVersion->minor = atoi(token);
-            break;
-        case 2:
-            apiVersion->patch = atoi(token);
-#ifndef INTERNAL_BUILD
-            apiVersion->build = 0;
-            break;
-#else
-            break;
-        case 3:
-            apiVersion->build = atoi(token);
-            break;
-#endif // INTERNAL_BUILD
-        default:
-            ADI_ERROR_REPORT(&device->common, ADI_COMMON_ERRSRC_API, ADI_COMMON_ERR_API_FAIL, ADI_COMMON_ACT_ERR_API_NOT_IMPLEMENTED, version, "Oops");
-        }
-        ii++;
-    }
+    apiVersion->major = 0;
+    apiVersion->minor = 0;
+    apiVersion->patch = 0;
+    apiVersion->build = 0;
 
-    free(to_free);
+    sscanf("%u.%u.%u.%u", version, &apiVersion->major, &apiVersion->minor,
+	  &apiVersion->patch, &apiVersion->build);
 
     ADI_API_RETURN(device);
 }
