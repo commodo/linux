@@ -636,12 +636,14 @@ static int ad9680_setup_jesd204_link(struct axiadc_converter *conv,
 		return ret;
 	}
 
+#if 0
 	ret = clk_set_rate(conv->lane_clk, lane_rate_kHz);
 	if (ret < 0) {
 		dev_err(&conv->spi->dev, "Failed to set lane rate to %lu kHz: %d\n",
 			lane_rate_kHz, ret);
 		return ret;
 	}
+#endif
 
 	return 0;
 }
@@ -693,9 +695,11 @@ static int ad9680_jesd204_init_clks(struct jesd204_dev *jdev)
 	if (IS_ERR(conv->clk) && PTR_ERR(conv->clk) != -ENOENT)
 		return PTR_ERR(conv->clk);
 
+#if 0
 	conv->lane_clk = devm_clk_get(&conv->spi->dev, "jesd_adc_clk");
 	if (IS_ERR(conv->lane_clk) && PTR_ERR(conv->lane_clk) != -ENOENT)
 		return PTR_ERR(conv->lane_clk);
+#endif
 
 	return JESD204_STATE_CHANGE_DONE;
 }
@@ -743,7 +747,7 @@ static int ad9680_jesd204_disable_link(struct jesd204_dev *jdev,
 	/* Disable link */
 	ad9680_spi_write(conv->spi, 0x571, 0x15);
 
-	clk_disable_unprepare(conv->lane_clk);
+	//clk_disable_unprepare(conv->lane_clk);
 
 	return JESD204_STATE_CHANGE_DONE;
 }
@@ -766,11 +770,13 @@ static int ad9680_jesd204_enable_link(struct jesd204_dev *jdev,
 	dev_info(&conv->spi->dev, "PLL %s\n",
 		 (pll_stat & 0x80) ? "LOCKED" : "UNLOCKED");
 
+#if 0
 	ret = clk_prepare_enable(conv->lane_clk);
 	if (ret < 0) {
 		dev_err(&conv->spi->dev, "Failed to enable JESD204 link: %d\n", ret);
 		return ret;
 	}
+#endif
 
 	return JESD204_STATE_CHANGE_DONE;
 }
