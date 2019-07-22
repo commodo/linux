@@ -412,7 +412,9 @@ static int adxcvr_clk_register(struct device *dev, struct device_node *node,
 	int ret;
 
 	num_clks = of_property_count_strings(node, "clock-output-names");
-	if (num_clks < 1 || num_clks > 2)
+	if (num_clks < 1)
+		return 0;
+	if (num_clks > 2)
 		return -EINVAL;
 
 	for (i = 0; i < num_clks; i++) {
@@ -539,20 +541,11 @@ static const char *adxcvr_gt_names[] = {
 	[XILINX_XCVR_TYPE_US_GTY4] = "GTY4",
 };
 
-static const struct jesd204_dev_data adxcvr_jesd204_init_data = {
-};
-
-static int adxcvr_probe(struct platform_device *pdev)
+static int adxcvr_init_clks(struct jesd204_dev *jdev)
 {
-	struct device_node *np = pdev->dev.of_node;
-	struct adxcvr_state *st;
-	struct resource *mem; /* IO mem resources */
-	unsigned int synth_conf, xcvr_type;
-	int i, ret;
-
-	st = devm_kzalloc(&pdev->dev, sizeof(*st), GFP_KERNEL);
-	if (!st)
-		return -ENOMEM;
+	struct device *dev = jesd204_dev_to_device(jdev);
+	struct platform_device *pdev = to_platform_device(dev);
+	struct adxcvr_state *st = platform_get_drvdata(pdev);
 
 	st->conv_clk = devm_clk_get(&pdev->dev, "conv");
 	if (IS_ERR(st->conv_clk))
@@ -575,12 +568,122 @@ static int adxcvr_probe(struct platform_device *pdev)
 		st->lane_rate_div40_clk = ERR_PTR(-ENOENT);
 	}
 
+	return JESD204_STATE_CHANGE_DONE;
+}
+
+static int adxcvr_disable_clks(struct jesd204_dev *jdev)
+{
+	struct device *dev = jesd204_dev_to_device(jdev);
+	struct platform_device *pdev = to_platform_device(dev);
+	struct adxcvr_state *st = platform_get_drvdata(pdev);
+
+	clk_disable_unprepare(st->conv_clk);
+
+	adxcvr_write(st, ADXCVR_REG_RESETN, 0);
+
+	return JESD204_STATE_CHANGE_DONE;
+}
+
+static int adxcvr_enable_clks(struct jesd204_dev *jdev)
+{
+	struct device *dev = jesd204_dev_to_device(jdev);
+	struct platform_device *pdev = to_platform_device(dev);
+	struct adxcvr_state *st = platform_get_drvdata(pdev);
+	int ret;
+
 	ret = clk_prepare_enable(st->conv_clk);
 	if (ret < 0)
 		return ret;
 
+	adxcvr_write(st, ADXCVR_REG_RESETN, ADXCVR_RESETN);
+
+	ret = adxcvr_status_error(st->dev);
+	if (ret)
+		return ret;
+
+	return JESD204_STATE_CHANGE_DONE;
+}
+
+static int adxcvr_setup_link(struct jesd204_dev *jdev,
+			    unsigned int link_num,
+			    struct jesd204_link *config)
+{
+	struct device *dev = jesd204_dev_to_device(jdev);
+	struct platform_device *pdev = to_platform_device(dev);
+	struct adxcvr_state *st = platform_get_drvdata(pdev);
+	unsigned long parent_rate, lane_rate;
+	int ret;
+
+	parent_rate = clk_get_rate(st->conv_clk);
+	lane_rate = adxcvr_clk_recalc_rate(&st->lane_clk_hw, parent_rate);
+
+	ret = adxcvr_clk_set_rate(&st->lane_clk_hw, lane_rate, parent_rate);
+	if (ret)
+		return ret;
+
+	return JESD204_STATE_CHANGE_DONE;
+}
+
+static const struct jesd204_dev_ops adxcvr_ops = {
+	.init_clocks = adxcvr_init_clks,
+	.disable_clocks = adxcvr_disable_clks,
+	.enable_clocks = adxcvr_enable_clks,
+	.setup_link = adxcvr_setup_link,
+};
+
+static const struct jesd204_dev_data adxcvr_jesd204_init_data = {
+	.ops = &adxcvr_ops,
+};
+
+static int adxcvr_probe_clk_init(struct adxcvr_state *st)
+{
+	struct device *dev = st->xcvr.dev;
+
+	st->conv_clk = devm_clk_get(dev, "conv");
+	if (IS_ERR(st->conv_clk)) {
+		if (PTR_ERR(st->conv_clk) == -ENOENT)
+			return 0;
+		return PTR_ERR(st->conv_clk);
+	}
+
+	st->lane_rate_div40_clk = devm_clk_get(dev, "div40");
+	if (IS_ERR(st->lane_rate_div40_clk)) {
+		if (PTR_ERR(st->lane_rate_div40_clk) != -ENOENT)
+			return PTR_ERR(st->lane_rate_div40_clk);
+	}
+
+	if (clk_is_match(st->conv_clk, st->lane_rate_div40_clk)) {
+		/*
+		 * In this case we need to make sure that the reference clock
+		 * runs at lanerate / 40. No need to keep two references to the
+		 * same clock around.
+		 */
+		st->ref_is_div40 = true;
+		devm_clk_put(dev, st->lane_rate_div40_clk);
+		st->lane_rate_div40_clk = ERR_PTR(-ENOENT);
+	}
+
+	return clk_prepare_enable(st->conv_clk);
+}
+
+static int adxcvr_probe(struct platform_device *pdev)
+{
+	struct device_node *np = pdev->dev.of_node;
+	struct adxcvr_state *st;
+	struct resource *mem; /* IO mem resources */
+	unsigned int synth_conf, xcvr_type;
+	int i, ret;
+
+	st = devm_kzalloc(&pdev->dev, sizeof(*st), GFP_KERNEL);
+	if (!st)
+		return -ENOMEM;
+
 	st->xcvr.dev = &pdev->dev;
 	st->xcvr.drp_ops = &adxcvr_drp_ops;
+
+	ret = adxcvr_probe_clk_init(st);
+	if (ret)
+		return ret;
 
 	ret = adxcvr_parse_dt(st, np);
 	if (ret < 0)

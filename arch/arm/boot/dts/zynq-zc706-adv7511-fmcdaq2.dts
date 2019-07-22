@@ -148,9 +148,6 @@
 		clocks = <&clk0_ad9523 4>;
 		clock-names = "conv";
 
-		#clock-cells = <1>;
-		clock-output-names = "adc_gt_clk", "rx_out_clk";
-
 		adi,sys-clk-select = <0>;
 		adi,out-clk-select = <4>;
 		adi,use-lpm-enable;
