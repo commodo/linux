@@ -34,6 +34,7 @@ const unsigned int decimation_factors_available[] = {1, 8};
 
 struct axiadc_core_info {
 	unsigned int version;
+	struct jesd204_dev_data	jesd204_init_data;
 };
 
 static int axiadc_chan_to_regoffset(struct iio_chan_spec const *chan)
@@ -699,6 +700,8 @@ static const struct axiadc_core_info ad9643_6_00_a_info = {
 
 static const struct axiadc_core_info ad9680_6_00_a_info = {
 	.version = ADI_AXI_PCORE_VER(10, 0, 'a'),
+	.jesd204_init_data = {
+	},
 };
 
 /* Match table for of_platform binding */
@@ -870,6 +873,12 @@ static int axiadc_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_unconfigure_ring;
 
+	st->jdev = jesd204_dev_register(&pdev->dev, &info->jesd204_init_data);
+	if (IS_ERR(st->jdev)) {
+		ret = PTR_ERR(st->jdev);
+		goto err_unreg_iio;
+	}
+
 	dev_info(&pdev->dev, "ADI AIM (%d.%.2d.%c) at 0x%08llX mapped to 0x%p,"
 		 " probed ADC %s as %s\n",
 		ADI_AXI_PCORE_VER_MAJOR(st->pcore_version),
@@ -893,6 +902,8 @@ static int axiadc_probe(struct platform_device *pdev)
 
 	return 0;
 
+err_unreg_iio:
+	iio_device_register(indio_dev);
 err_unconfigure_ring:
 	if (!st->dp_disable)
 			axiadc_unconfigure_ring_stream(indio_dev);
@@ -916,6 +927,8 @@ static int axiadc_remove(struct platform_device *pdev)
 	struct iio_dev *indio_dev = platform_get_drvdata(pdev);
 	struct axiadc_state *st = iio_priv(indio_dev);
 
+	jesd204_dev_unregister(st->jdev);
+	
 	iio_device_unregister(indio_dev);
 	if (!st->dp_disable && !axiadc_read(st, ADI_AXI_REG_ID) &&
 		of_find_property(pdev->dev.of_node, "dmas", NULL))

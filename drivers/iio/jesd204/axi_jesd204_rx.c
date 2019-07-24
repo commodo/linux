@@ -67,8 +67,8 @@ struct axi_jesd204_rx {
 	struct device *dev;
 
 	struct clk *axi_clk;
-	struct clk *device_clk;
-	struct clk *lane_clk;
+//	struct clk *device_clk;
+//	struct clk *lane_clk;
 
 	struct jesd204_dev *jdev;
 
@@ -136,6 +136,7 @@ static ssize_t axi_jesd204_rx_status_read(struct device *dev,
 			clock_rate / 1000, clock_rate % 1000);
 	}
 
+#if 0
 	clock_rate = DIV_ROUND_CLOSEST(clk_get_rate(jesd->device_clk), 1000);
 	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
 		"Reported Link Clock: %d.%.3d MHz\n",
@@ -167,6 +168,7 @@ static ssize_t axi_jesd204_rx_status_read(struct device *dev,
 		ret += scnprintf(buf + ret, PAGE_SIZE, "External reset is %s\n",
 			(link_disabled & 0x2) ? "asserted" : "deasserted");
 	}
+#endif
 
 	return ret;
 }
@@ -274,8 +276,10 @@ static ssize_t axi_jesd204_rx_laneinfo_read(struct device *dev,
 		(val[2] >> 21) & 0x7
 	);
 
+#if 0
 	ret += scnprintf(buf + ret, PAGE_SIZE - ret,
 		"FC: %lu\n", clk_get_rate(jesd->lane_clk));
+#endif
 
 	return ret;
 }
@@ -492,72 +496,15 @@ static void axi_jesd204_rx_watchdog(struct work_struct *work)
 	schedule_delayed_work(&jesd->watchdog_work, HZ);
 }
 
-static int axi_jesd204_rx_init_clks(struct jesd204_dev *jdev)
-{
-	struct device *dev = jesd204_dev_to_device(jdev);
-	struct platform_device *pdev = to_platform_device(dev);
-	struct axi_jesd204_rx *jesd = platform_get_drvdata(pdev);
-
-	jesd->axi_clk = devm_clk_get(dev, "s_axi_aclk");
-	if (IS_ERR(jesd->axi_clk))
-		return PTR_ERR(jesd->axi_clk);
-
-	jesd->device_clk = devm_clk_get(dev, "device_clk");
-	if (IS_ERR(jesd->device_clk))
-		return PTR_ERR(jesd->device_clk);
-
-	jesd->lane_clk = devm_clk_get(dev, "lane_clk");
-	if (IS_ERR(jesd->lane_clk))
-		return PTR_ERR(jesd->lane_clk);
-
-	return JESD204_STATE_CHANGE_DONE;
-}
-
-static int axi_jesd204_rx_disable_clks(struct jesd204_dev *jdev)
-{
-	struct axi_jesd204_rx *jesd = jdev_to_axi_jesd204_rx(jdev);
-
-	clk_disable_unprepare(jesd->device_clk);
-	clk_disable_unprepare(jesd->axi_clk);
-
-	return JESD204_STATE_CHANGE_DONE;
-}
-
-static int axi_jesd204_rx_enable_clks(struct jesd204_dev *jdev)
-{
-	struct axi_jesd204_rx *jesd = jdev_to_axi_jesd204_rx(jdev);
-	int ret;
-
-	ret = clk_prepare_enable(jesd->axi_clk);
-	if (ret)
-		return ret;
-
-	ret = clk_prepare_enable(jesd->device_clk);
-	if (ret)
-		goto err_axi_disable;
-
-	return JESD204_STATE_CHANGE_DONE;
-
-err_axi_disable:
-	clk_disable_unprepare(jesd->axi_clk);
-
-	return ret;
-}
-
 static int axi_jesd204_rx_enable_link(struct jesd204_dev *jdev,
 				      unsigned int link_id)
 {
 	struct axi_jesd204_rx *jesd = jdev_to_axi_jesd204_rx(jdev);
-	int ret;
 
 	writel_relaxed(0x3, jesd->base + JESD204_RX_REG_SYSREF_STATUS);
 	writel_relaxed(0x0, jesd->base + JESD204_RX_REG_LINK_DISABLE);
 
 	schedule_delayed_work(&jesd->watchdog_work, HZ);
-
-	ret = clk_prepare_enable(jesd->lane_clk);
-	if (ret)
-		return ret;
 
 	return JESD204_STATE_CHANGE_DONE;
 }
@@ -573,9 +520,6 @@ static int axi_jesd204_rx_disable_link(struct jesd204_dev *jdev,
 }
 
 static const struct jesd204_dev_ops axi_jesd204_rx_ops = {
-	.init_clocks = axi_jesd204_rx_init_clks,
-	.disable_clocks = axi_jesd204_rx_disable_clks,
-	.enable_clocks = axi_jesd204_rx_enable_clks,
 	.setup_link = axi_jesd204_rx_setup_link,
 	.disable_link = axi_jesd204_rx_disable_link,
 	.enable_link = axi_jesd204_rx_enable_link,
@@ -646,6 +590,14 @@ static int axi_jesd204_rx_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	jesd->axi_clk = devm_clk_get(&pdev->dev, "s_axi_aclk");
+	if (IS_ERR(jesd->axi_clk))
+		return PTR_ERR(jesd->axi_clk);
+
+	ret = clk_prepare_enable(jesd->axi_clk);
+	if (ret)
+		return ret;
+
 	jesd->num_lanes = readl_relaxed(jesd->base + JESD204_RX_REG_SYNTH_NUM_LANES);
 	jesd->data_path_width = readl_relaxed(jesd->base + JESD204_RX_REG_SYNTH_DATA_PATH_WIDTH);
 
@@ -657,7 +609,7 @@ static int axi_jesd204_rx_probe(struct platform_device *pdev)
 	ret = request_irq(irq, axi_jesd204_rx_irq, 0, dev_name(&pdev->dev),
 		jesd);
 	if (ret)
-		return ret;
+		goto err_axi_clk_disable;
 
 	platform_set_drvdata(pdev, jesd);
 
@@ -691,6 +643,8 @@ static int axi_jesd204_rx_probe(struct platform_device *pdev)
 
 err_free_irq:
 	free_irq(irq, jesd);
+err_axi_clk_disable:
+	clk_disable_unprepare(jesd->axi_clk);
 
 	return ret;
 }
@@ -708,6 +662,7 @@ static int axi_jesd204_rx_remove(struct platform_device *pdev)
 	writel_relaxed(0x00, jesd->base + JESD204_RX_REG_IRQ_ENABLE);
 
 	writel_relaxed(0x1, jesd->base + JESD204_RX_REG_LINK_DISABLE);
+	clk_disable_unprepare(jesd->axi_clk);
 
 	return 0;
 }

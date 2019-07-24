@@ -19,6 +19,8 @@
 #include "axi_adxcvr_eyescan.h"
 
 
+static void adxcvr_enforce_settings(struct adxcvr_state *st);
+
 static struct adxcvr_state *xcvr_to_adxcvr(struct xilinx_xcvr *xcvr)
 {
 	return container_of(xcvr, struct adxcvr_state, xcvr);
@@ -411,10 +413,13 @@ static int adxcvr_clk_register(struct device *dev, struct device_node *node,
 	unsigned int i;
 	int ret;
 
-	num_clks = of_property_count_strings(node, "clock-output-names");
-	if (num_clks < 1)
+	if (jesd204_dev_from_device(dev))
 		return 0;
-	if (num_clks > 2)
+
+	adxcvr_enforce_settings(st);
+
+	num_clks = of_property_count_strings(node, "clock-output-names");
+	if (num_clks < 1 || num_clks > 2)
 		return -EINVAL;
 
 	for (i = 0; i < num_clks; i++) {
@@ -618,6 +623,7 @@ static int adxcvr_setup_link(struct jesd204_dev *jdev,
 	lane_rate = adxcvr_clk_recalc_rate(&st->lane_clk_hw, parent_rate);
 
 	ret = adxcvr_clk_set_rate(&st->lane_clk_hw, lane_rate, parent_rate);
+	pr_err("%s %d prate %lu lane %lu ret %d\n", __func__, __LINE__, parent_rate, lane_rate, ret);
 	if (ret)
 		return ret;
 
@@ -759,7 +765,10 @@ static int adxcvr_probe(struct platform_device *pdev)
 		}
 	}
 
-	adxcvr_enforce_settings(st);
+	st->jdev = devm_jesd204_dev_register(&pdev->dev,
+					     &adxcvr_jesd204_init_data);
+	if (IS_ERR(st->jdev))
+		return PTR_ERR(st->jdev);
 
 	ret = adxcvr_clk_register(&pdev->dev, np, __clk_get_name(st->conv_clk));
 	if (ret)
@@ -770,12 +779,6 @@ static int adxcvr_probe(struct platform_device *pdev)
 		return ret;
 
 	device_create_file(st->dev, &dev_attr_reg_access);
-
-	st->jdev = devm_jesd204_dev_register(&pdev->dev, &adxcvr_jesd204_init_data);
-	if (IS_ERR(st->jdev)) {
-		ret = PTR_ERR(st->jdev);
-		goto disable_unprepare;
-	}
 
 	dev_info(&pdev->dev, "AXI-ADXCVR-%s (%d.%.2d.%c) using %s at 0x%08llX mapped to 0x%p. Number of lanes: %d.",
 		st->tx_enable ? "TX" : "RX",
