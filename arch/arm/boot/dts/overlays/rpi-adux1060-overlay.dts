@@ -1,0 +1,28 @@
+/dts-v1/;
+/plugin/;
+
+#include "../../../../../include/dt-bindings/gpio/gpio.h"
+
+/ {
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			adux1060@0 {
+				compatible = "adi,adux1060";
+				reg = <0>;
+				spi-max-frequency = <1000000>;
+				spi-cpha;
+
+				reset-gpios = <&gpio 17 GPIO_ACTIVE_LOW>;
+				adi,cs-gpios = <&gpio 26 GPIO_ACTIVE_LOW>;
+
+				interrupts = <25 1>;
+				interrupt-parent = <&gpio>;
+			};
+		};
+	};
+};

@@ -121,6 +121,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	rotary-encoder.dtbo \
 	rpi-addi9036.dtbo \
 	rpi-adf4371.dtbo \
+	rpi-adux1060.dtbo \
 	rpi-ad5686.dtbo \
 	rpi-ad7190.dtbo \
 	rpi-ad738x.dtbo \
