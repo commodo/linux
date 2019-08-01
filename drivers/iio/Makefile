@@ -24,6 +24,7 @@ obj-y += dac/
 obj-y += dummy/
 obj-y += gyro/
 obj-y += frequency/
+obj-y += fingerprint/
 obj-y += health/
 obj-y += humidity/
 obj-y += imu/

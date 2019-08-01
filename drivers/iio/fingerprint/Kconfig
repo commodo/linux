@@ -1,0 +1,14 @@
+#
+# Fingerprint Sensors
+#
+
+menu "Fingerprint Sensors"
+
+config ADUX1060
+	tristate "ADUX1060 Fingerprint Scanner"
+	depends on SPI
+	help
+	  Say Y here to build SPI interface support for the ADUX1060
+	  Fingerprint scannner sensor
+
+endmenu
