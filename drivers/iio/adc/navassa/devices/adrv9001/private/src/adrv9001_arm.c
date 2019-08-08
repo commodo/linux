@@ -2094,34 +2094,34 @@ static int32_t adrv9001_PfirFilterCoeffWrite(adi_adrv9001_Device_t *device,
     /* Number of Tx/Rx NB magnitude compensation PFIR filters */
     static const uint32_t ADRV9001_MAG13_PFIR = 4;
 
-    const adi_adrv9001_PfirWbNbBuffer_t PfirWbNbFilterBankInfo[] = 
+    const adi_adrv9001_PfirWbNbBuffer_t *PfirWbNbFilterBankInfo[] =
     { 
-        pfirBuffer->pfirRxWbNbChFilterCoeff_A, pfirBuffer->pfirRxWbNbChFilterCoeff_B,
-        pfirBuffer->pfirRxWbNbChFilterCoeff_C, pfirBuffer->pfirRxWbNbChFilterCoeff_D,
-        pfirBuffer->pfirTxWbNbPulShpCoeff_A,   pfirBuffer->pfirTxWbNbPulShpCoeff_B,
-        pfirBuffer->pfirTxWbNbPulShpCoeff_C,   pfirBuffer->pfirTxWbNbPulShpCoeff_D
+        &pfirBuffer->pfirRxWbNbChFilterCoeff_A, &pfirBuffer->pfirRxWbNbChFilterCoeff_B,
+        &pfirBuffer->pfirRxWbNbChFilterCoeff_C, &pfirBuffer->pfirRxWbNbChFilterCoeff_D,
+        &pfirBuffer->pfirTxWbNbPulShpCoeff_A,   &pfirBuffer->pfirTxWbNbPulShpCoeff_B,
+        &pfirBuffer->pfirTxWbNbPulShpCoeff_C,   &pfirBuffer->pfirTxWbNbPulShpCoeff_D
     };
 
-    const adi_adrv9001_PfirPulseBuffer_t PfirRxNbPulShpFilterBankInfo[] = 
+    const adi_adrv9001_PfirPulseBuffer_t *PfirRxNbPulShpFilterBankInfo[] =
     { 
-        pfirBuffer->pfirRxNbPulShp[0], pfirBuffer->pfirRxNbPulShp[1]
+        &pfirBuffer->pfirRxNbPulShp[0], &pfirBuffer->pfirRxNbPulShp[1]
     };
 
-    const adi_adrv9001_PfirMag21Buffer_t PfirMag21FilterBankInfo[] = 
+    const adi_adrv9001_PfirMag21Buffer_t *PfirMag21FilterBankInfo[] =
     { 
-        pfirBuffer->pfirRxMagLowTiaLowSRHp[0],   pfirBuffer->pfirRxMagLowTiaLowSRHp[1],
-        pfirBuffer->pfirRxMagLowTiaHighSRHp[0],  pfirBuffer->pfirRxMagLowTiaHighSRHp[1],
-        pfirBuffer->pfirRxMagHighTiaHighSRHp[0], pfirBuffer->pfirRxMagHighTiaHighSRHp[1],
-        pfirBuffer->pfirRxMagLowTiaLowSRLp[0],   pfirBuffer->pfirRxMagLowTiaLowSRLp[1],
-        pfirBuffer->pfirRxMagLowTiaHighSRLp[0],  pfirBuffer->pfirRxMagLowTiaHighSRLp[1],
-        pfirBuffer->pfirRxMagHighTiaHighSRLp[0], pfirBuffer->pfirRxMagHighTiaHighSRLp[1], 
-        pfirBuffer->pfirTxMagComp1,              pfirBuffer->pfirTxMagComp2
+	    &pfirBuffer->pfirRxMagLowTiaLowSRHp[0],   &pfirBuffer->pfirRxMagLowTiaLowSRHp[1],
+	    &pfirBuffer->pfirRxMagLowTiaHighSRHp[0],  &pfirBuffer->pfirRxMagLowTiaHighSRHp[1],
+	    &pfirBuffer->pfirRxMagHighTiaHighSRHp[0], &pfirBuffer->pfirRxMagHighTiaHighSRHp[1],
+	    &pfirBuffer->pfirRxMagLowTiaLowSRLp[0],   &pfirBuffer->pfirRxMagLowTiaLowSRLp[1],
+	    &pfirBuffer->pfirRxMagLowTiaHighSRLp[0],  &pfirBuffer->pfirRxMagLowTiaHighSRLp[1],
+	    &pfirBuffer->pfirRxMagHighTiaHighSRLp[0], &pfirBuffer->pfirRxMagHighTiaHighSRLp[1],
+	    &pfirBuffer->pfirTxMagComp1,              &pfirBuffer->pfirTxMagComp2
     };
 
-    const adi_adrv9001_PfirMag13Buffer_t PfirMag13FilterBankInfo[] = 
+    const adi_adrv9001_PfirMag13Buffer_t *PfirMag13FilterBankInfo[] =
     { 
-        pfirBuffer->pfirTxMagCompNb[0], pfirBuffer->pfirTxMagCompNb[1],
-        pfirBuffer->pfirRxMagCompNb[0], pfirBuffer->pfirRxMagCompNb[1]
+        &pfirBuffer->pfirTxMagCompNb[0], &pfirBuffer->pfirTxMagCompNb[1],
+        &pfirBuffer->pfirRxMagCompNb[0], &pfirBuffer->pfirRxMagCompNb[1]
     };
 
     ADI_API_PRIV_ENTRY_PTR_EXPECT(device, pfirBuffer);
@@ -2133,7 +2133,7 @@ static int32_t adrv9001_PfirFilterCoeffWrite(adi_adrv9001_Device_t *device,
          * pfirTxWbNbPulShpCoeff_A[128] to pfirTxWbNbPulShpCoeff_D[128], 
          * in cfgData[], which is then written in ARM memory */
         recoveryAction = adrv9001_PfirWbNbFilterBank_Write(device, 
-                                                           &PfirWbNbFilterBankInfo[i],
+                                                           PfirWbNbFilterBankInfo[i],
                                                            ADI_ADRV9001_WB_NB_PFIR_COEFS_MAX_SIZE,
                                                            &cfgData[0], 
                                                            &tempProfileAddr, 
@@ -2150,7 +2150,7 @@ static int32_t adrv9001_PfirFilterCoeffWrite(adi_adrv9001_Device_t *device,
     {
         /* Writes pfirRxNbPulShp1[128] and pfirRxNbPulShp2[128] in cfgData[], which is then written in ARM memory */
         recoveryAction = adrv9001_PfirRxNbPulShpFilterBank_Write(device, 
-                                                                 &PfirRxNbPulShpFilterBankInfo[i],
+                                                                 PfirRxNbPulShpFilterBankInfo[i],
                                                                  ADI_ADRV9001_WB_NB_PFIR_COEFS_MAX_SIZE,
                                                                  &cfgData[0], 
                                                                  &tempProfileAddr, 
@@ -2167,7 +2167,7 @@ static int32_t adrv9001_PfirFilterCoeffWrite(adi_adrv9001_Device_t *device,
        TX Magnitude Compensation PFIR 21 taps at Mux410B in ARM memory */
     ADI_EXPECT(adrv9001_mag21CompPfir_Write, 
                device, 
-               PfirMag21FilterBankInfo,
+               PfirMag21FilterBankInfo[0],
                ADRV9001_MAG21_PFIR,
                ADI_ADRV9001_MAG_COMP_PFIR_COEFS_MAX_SIZE,
                &cfgData[0], 
@@ -2177,7 +2177,7 @@ static int32_t adrv9001_PfirFilterCoeffWrite(adi_adrv9001_Device_t *device,
     /* Write TX/RX Magnitude Compensation PFIR for NB in ARM memory */
     ADI_EXPECT(adrv9001_mag13CompPfir_Write, 
                device, 
-               PfirMag13FilterBankInfo,
+               PfirMag13FilterBankInfo[0],
                ADRV9001_MAG13_PFIR,
                ADI_ADRV9001_MAG_COMP_NB_PFIR_COEFS_MAX_SIZE,
                &cfgData[0], 
