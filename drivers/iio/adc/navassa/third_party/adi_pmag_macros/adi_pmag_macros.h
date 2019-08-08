@@ -64,8 +64,7 @@ ADI_PROCESS_X(ADI_STORE_STR, tokenArray, tokenIndex, jsonBuffer, dummyBuffer, st
 
 #define ADI_PROCESS_ARRAY_X(X, tokenArray, tokenIndex, jsonBuffer, parsingBuffer, arrayName) \
 ADI_IF_JSON_EQ(jsonBuffer, tokenArray[tokenIndex], arrayName) { \
-    tokenIndex++; \
-    int16_t size = tokenArray[tokenIndex].size; \
+    int16_t size = tokenArray[++tokenIndex].size; \
     int16_t k = 0; \
     for (k = 0; k < size; k++) { \
         X; \
@@ -81,8 +80,7 @@ ADI_PROCESS_ARRAY_X(ADI_STORE_INT(tokenArray, tokenIndex, jsonBuffer, parsingBuf
 
 #define ADI_PROCESS_STRUCT_X(X, tokenArray, tokenIndex, jsonBuffer, parsingBuffer, structName) \
 ADI_IF_JSON_EQ(jsonBuffer, tokenArray[tokenIndex], structName) { \
-    tokenIndex++; \
-    int16_t size = tokenArray[tokenIndex].size; \
+    int16_t size = tokenArray[++tokenIndex].size; \
     int16_t end = tokenArray[tokenIndex].end; \
     { \
         int16_t j = 0; \
@@ -100,13 +98,11 @@ ADI_IF_JSON_EQ(jsonBuffer, tokenArray[tokenIndex], structName) { \
 
 #define ADI_PROCESS_ARRAY_STRUCT_X(X, tokenArray, tokenIndex, jsonBuffer, parsingBuffer, structName, indexName) \
 ADI_IF_JSON_EQ(jsonBuffer, tokenArray[tokenIndex], structName) { \
-    tokenIndex++; \
-    int16_t size = tokenArray[tokenIndex].size; \
+    int16_t size = tokenArray[++tokenIndex].size; \
     int16_t indexName = 0; \
     for (indexName = 0; indexName < size; indexName++) { \
-        tokenIndex++; \
-        int16_t size = tokenArray[tokenIndex].size; \
-        int16_t end = tokenArray[tokenIndex].end; \
+	int16_t end, size = tokenArray[++tokenIndex].size; \
+        end = tokenArray[tokenIndex].end; \
         { \
             int16_t j = 0; \
             for (j = 0; j < size; j++) { \
