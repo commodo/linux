@@ -6,7 +6,9 @@ SRCS = $(addprefix /devices/adrv9001/private/src/, $(notdir $(wildcard $(src)/de
 	/common/adi_error/adi_common_error.c  \
 	/common/adi_hal/adi_common_hal.c \
 	/platforms/linux_platform.c \
-	/third_party/jsmn/jsmn.c
+	/third_party/jsmn/jsmn.c \
+	/adrv9002.c \
+	/adrv9002_conv.c
 
 ccflags-y += -I$(src)/devices/adrv9001/private/include \
 	-I$(src)/devices/adrv9001/public/include  \
@@ -23,7 +25,8 @@ ccflags-y += -I$(src)/devices/adrv9001/private/include \
 	-DADRV9001_CHANNELID_CHECK=0 \
 	-DCHECK_VCO_CAL=0 \
 	-DRC_TUNE_UNIT_TEST=0 \
-	-DWAIT_FOR_TEMP=0
+	-DWAIT_FOR_TEMP=0  \
+	-DADI_COMMON_VERBOSE=1
 
 
 obj-y = $(SRCS:.c=.o)

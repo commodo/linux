@@ -1,0 +1,121 @@
+/*
+ * ADRV9002
+ *
+ * Copyright 2019 Analog Devices Inc.
+ *
+ * Licensed under the GPL-2.
+ */
+
+#ifndef IIO_TRX_ADRV9002_H_
+#define IIO_TRX_ADRV9002_H_
+
+#include <linux/module.h>
+#include <linux/device.h>
+#include <linux/kernel.h>
+#include <linux/slab.h>
+#include <linux/spi/spi.h>
+#include <linux/err.h>
+#include <linux/delay.h>
+#include <linux/io.h>
+#include <linux/string.h>
+#include <linux/debugfs.h>
+#include <linux/uaccess.h>
+#include <linux/firmware.h>
+#include <linux/interrupt.h>
+
+#include <linux/of.h>
+#include <linux/of_gpio.h>
+#include <linux/gpio/consumer.h>
+
+#include <asm/unaligned.h>
+
+#include <linux/iio/iio.h>
+#include <linux/iio/sysfs.h>
+
+#include <linux/clk.h>
+#include <linux/clkdev.h>
+#include <linux/clk-provider.h>
+
+#include "adi_adrv9001.h"
+#include "adi_adrv9001_arm.h"
+#include "adi_adrv9001_arm_types.h"
+#include "adi_adrv9001_auxdac.h"
+#include "adi_adrv9001_auxdac_types.h"
+#include "adi_adrv9001_cals.h"
+#include "adi_adrv9001_cals_types.h"
+#include "adi_adrv9001_error.h"
+#include "adi_adrv9001_gpio.h"
+#include "adi_adrv9001_gpio_types.h"
+#include "adi_adrv9001_mcs.h"
+#include "adi_adrv9001_mcs_types.h"
+#include "adi_adrv9001_radio.h"
+#include "adi_adrv9001_radio_types.h"
+#include "adi_adrv9001_rx_agc.h"
+#include "adi_adrv9001_rx_agc_types.h"
+#include "adi_adrv9001_rx.h"
+#include "adi_adrv9001_rx_types.h"
+#include "adi_adrv9001_spi.h"
+#include "adi_adrv9001_spi_types.h"
+#include "adi_adrv9001_stream.h"
+#include "adi_adrv9001_stream_types.h"
+#include "adi_adrv9001_tx.h"
+#include "adi_adrv9001_tx_types.h"
+#include "adi_adrv9001_types.h"
+#include "adi_adrv9001_user.h"
+#include "adi_adrv9001_utilities.h"
+#include "adi_adrv9001_utilities_types.h"
+#include "adi_adrv9001_version.h"
+
+
+
+
+enum ad900x_device_id {
+	ID_ADRV9002,
+};
+
+enum adrv9002_clocks {
+	RX1_SAMPL_CLK,
+	RX2_SAMPL_CLK,
+	TX1_SAMPL_CLK,
+	TX2_SAMPL_CLK,
+	NUM_ADRV9002_CLKS,
+};
+
+struct adrv9002_clock {
+	struct clk_hw		hw;
+	struct spi_device	*spi;
+	struct adrv9002_rf_phy	*phy;
+	unsigned long		rate;
+	enum adrv9002_clocks 	source;
+};
+
+#define to_clk_priv(_hw) container_of(_hw, struct adrv9002_clock, hw)
+
+struct adrv9002_rf_phy {
+	struct spi_device 	*spi;
+	struct clk 		*dev_clk;
+	struct iio_dev 		*indio_dev;
+	struct gpio_desc	*reset_gpio;
+	struct gpio_desc	*int_gpio;
+
+
+	struct clk 		*clks[NUM_ADRV9002_CLKS];
+	struct adrv9002_clock	clk_priv[NUM_ADRV9002_CLKS];
+	struct clk_onecell_data	clk_data;
+
+	adi_adrv9001_Device_t   adrv9001_device;
+	adi_adrv9001_Device_t   *adrv9001;
+	adi_hal_Cfg_t		hal;
+
+	int			spi_device_id;
+
+};
+
+int adrv9002_hdl_loopback(struct adrv9002_rf_phy *phy, bool enable);
+int adrv9002_register_axi_converter(struct adrv9002_rf_phy *phy);
+struct adrv9002_rf_phy *adrv9002_spi_to_phy(struct spi_device *spi);
+int adrv9002_spi_read(struct spi_device *spi, u32 reg);
+int adrv9002_spi_write(struct spi_device *spi, u32 reg, u32 val);
+
+
+#endif
