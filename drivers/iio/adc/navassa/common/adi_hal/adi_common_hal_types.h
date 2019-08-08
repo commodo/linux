@@ -14,7 +14,11 @@
 #ifndef _ADI_COMMON_HAL_TYPES_H_
 #define _ADI_COMMON_HAL_TYPES_H_
 
+#ifdef __KERNEL__
+#include <linux/kernel.h>
+#else
 #include <stdint.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
