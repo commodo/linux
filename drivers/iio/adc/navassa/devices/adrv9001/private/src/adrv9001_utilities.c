@@ -38,7 +38,7 @@
 int32_t adrv9001_SafeFileLoad(adi_adrv9001_Device_t *device, const char *filename, char **buffer, uint32_t *filelength)
 {
 	/* FIXME MH */
-
+	BUG();
 	ADI_API_RETURN(device);
 }
 #else

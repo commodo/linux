@@ -15,6 +15,7 @@
 #ifdef __KERNEL__
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include <linux/firmware.h>
 
 #ifndef free
 #define free kfree
@@ -336,11 +337,72 @@ int32_t adi_adrv9001_Utilities_DeviceProfile_Load(adi_adrv9001_Device_t *device,
     ADI_API_RETURN(device);
 }
 
-
 int32_t adi_adrv9001_Utilities_ArmImage_Load(adi_adrv9001_Device_t *device, const char *armImagePath)
 {
-#ifdef __KERNEL__ /* FIXME: Later */
-	return 0;
+#ifdef __KERNEL__
+	adi_hal_Cfg_t *hal = device->common.devHalInfo;
+	struct spi_device *spi = hal->spi;
+	uint32_t i,numFileChunks = 0;
+	int32_t recoveryAction = ADI_COMMON_ACT_NO_ACTION;
+	const struct firmware *fw;
+	int ret;
+
+	ret = request_firmware(&fw, armImagePath, &spi->dev);
+	if (ret) {
+		dev_err(&spi->dev,
+			"request_firmware(%s) failed with %d\n", armImagePath, ret);
+	}
+
+	numFileChunks = fw->size / ADI_ADRV9001_ARM_BINARY_IMAGE_LOAD_CHUNK_SIZE_BYTES;
+
+	/*Check that ARM binary file is not empty*/
+	if (ret || (fw->size == 0))
+	{
+		ADI_ERROR_REPORT(&device->common, ADI_COMMON_ERRSRC_API, ADI_COMMON_ERR_INV_PARAM, ADI_COMMON_ACT_ERR_CHECK_PARAM, armImagePath,
+				 "Empty ARM binary image file encountered while attempting to load ARM binary image");
+		ADI_ERROR_RETURN(device->common.error.newAction);
+	}
+
+	/*Check that ARM binary file size does not exceed maximum size*/
+	if (fw->size > ADI_ADRV9001_ARM_BINARY_IMAGE_FILE_SIZE_BYTES)
+	{
+		ADI_ERROR_REPORT(&device->common, ADI_COMMON_ERRSRC_API, ADI_COMMON_ERR_INV_PARAM, ADI_COMMON_ACT_ERR_CHECK_PARAM, armImagePath,
+				 "ARM binary image file exceeds maximum ARM binary image size");
+		ADI_ERROR_RETURN(device->common.error.newAction);
+	}
+
+	/*Check that size of the file is a multiple of 4*/
+	if ((fw->size % 4) != 0)
+	{
+		ADI_ERROR_REPORT(&device->common, ADI_COMMON_ERRSRC_API, ADI_COMMON_ERR_INV_PARAM, ADI_COMMON_ACT_ERR_CHECK_PARAM, armImagePath,
+				 "ARM binary image file is expected to be a multiple of 4");
+		ADI_ERROR_RETURN(device->common.error.newAction);
+	}
+
+	/*Check that size of the file is divisible into equal sized chunks*/
+	if ((fw->size % numFileChunks) != 0)
+	{
+		ADI_ERROR_REPORT(&device->common, ADI_COMMON_ERRSRC_API, ADI_COMMON_ERR_INV_PARAM, ADI_COMMON_ACT_ERR_CHECK_PARAM, armImagePath,
+				 "ARM binary image chunk size is expected to divide the stream file into equal chunks");
+		ADI_ERROR_RETURN(device->common.error.newAction);
+	}
+
+	/*Read ARM binary file*/
+	for (i = 0; i < numFileChunks; i++)
+	{
+		/*Write the ARM binary chunk*/
+		if ((recoveryAction = adi_adrv9001_arm_Image_Write(device,
+			(i * ADI_ADRV9001_ARM_BINARY_IMAGE_LOAD_CHUNK_SIZE_BYTES),
+			&fw->data[(i * ADI_ADRV9001_ARM_BINARY_IMAGE_LOAD_CHUNK_SIZE_BYTES)],
+			ADI_ADRV9001_ARM_BINARY_IMAGE_LOAD_CHUNK_SIZE_BYTES)) != ADI_COMMON_ACT_NO_ACTION)
+		{
+			ADI_ERROR_RETURN(device->common.error.newAction);
+		}
+	}
+
+	release_firmware(fw);
+
+	return recoveryAction;
 #else
     static const size_t BIN_ELEMENT_SIZE = 1;
 
@@ -458,6 +520,7 @@ int32_t adi_adrv9001_Utilities_ArmImage_Load(adi_adrv9001_Device_t *device, cons
 int32_t adi_adrv9001_Utilities_StreamImage_Load(adi_adrv9001_Device_t *device, const char *streamImagePath)
 {
 #ifdef __KERNEL__ /* FIXME: Later */
+	BUG();
 	return 0;
 #else
     static const size_t BIN_ELEMENT_SIZE = 1;
@@ -678,8 +741,125 @@ int32_t adi_adrv9001_InitDigitalLoad(adi_adrv9001_Device_t *device, adi_adrv9001
 
 int32_t adi_adrv9001_Utilities_RxGainTable_Load(adi_adrv9001_Device_t *device, const char *rxGainTablePath, uint32_t rxChannelMask)
 {
-#ifdef __KERNEL__ /* FIXME: Later */
-	return 0;
+#ifdef __KERNEL__
+	adi_hal_Cfg_t *hal = device->common.devHalInfo;
+	struct spi_device *spi = hal->spi;
+	const struct firmware *fw;
+	int32_t recoveryAction = ADI_COMMON_ACT_NO_ACTION;
+	uint8_t minGainIndex = 0;
+	uint8_t maxGainIndex = 0;
+	uint8_t prevGainIndex = 0;
+	uint8_t gainIndex = 0;
+	uint8_t tiaControl = 0;
+	uint8_t adcControl = 0;
+	uint16_t lineCount = 0;
+	static adi_adrv9001_RxGainTableRow_t rxGainTableRowBuffer[ADI_ADRV9001_RX_GAIN_TABLE_SIZE_ROWS];
+	static const uint8_t NUM_COLUMNS = 7;
+	int ret;
+	const char header[] = {"Gain Index,FE Control Word,TIA Control,ADC Control,Ext Control,Phase Offset,Digital Gain"};
+	char *line, *ptr;
+
+	/* Check device pointer is not null */
+	ADI_API_ENTRY_PTR_EXPECT(device, rxGainTablePath);
+
+	ret = request_firmware(&fw, rxGainTablePath, &spi->dev);
+	if (ret) {
+		dev_err(&spi->dev,
+			"request_firmware(%s) failed with %d\n",rxGainTablePath, ret);
+		return ret;
+	}
+
+	ptr = (char *) fw->data;
+
+	while ((line = strsep(&ptr, "\n"))  && (lineCount <  ADI_ADRV9001_RX_GAIN_TABLE_SIZE_ROWS)) {
+		if (line >= (char *)fw->data + fw->size)
+			break;
+
+		line = skip_spaces(line);
+
+		if (sscanf(line,
+			"%hhu,%hhu,%hhu,%hhu,%hhu,%hu,%hd",
+			&gainIndex,
+			&rxGainTableRowBuffer[lineCount].rxFeGain,
+			&tiaControl,
+			&adcControl,
+			&rxGainTableRowBuffer[lineCount].extControl,
+			&rxGainTableRowBuffer[lineCount].phaseOffset,
+			&rxGainTableRowBuffer[lineCount].digGain) != NUM_COLUMNS) {
+
+			ret = strncmp(line, header , strlen(header));
+			if (ret == 0)
+				continue;
+
+			ADI_ERROR_REPORT(&device->common,
+					 ADI_COMMON_ERRSRC_API,
+					ADI_COMMON_ERR_INV_PARAM,
+					ADI_COMMON_ACT_ERR_CHECK_PARAM,
+					lineCount,
+					"Insufficient entries in Rx gain table row entry");
+			release_firmware(fw);
+			ADI_ERROR_RETURN(device->common.error.newAction);
+		}
+
+		rxGainTableRowBuffer[lineCount].adcTiaGain = ((adcControl << 1) | tiaControl);
+
+		if (lineCount == 0)
+		{
+			minGainIndex = gainIndex;
+		}
+		else
+		{
+			/*Check that gain indices are arranged in ascending order*/
+			if (prevGainIndex != (gainIndex - 1))
+			{
+				ADI_ERROR_REPORT(&device->common,
+						 ADI_COMMON_ERRSRC_API,
+		     ADI_COMMON_ERR_INV_PARAM,
+		     ADI_COMMON_ACT_ERR_CHECK_PARAM,
+		     gainIndex,
+		     "Gain indices not arranged in ascending order in Rx Gain Table file");
+				release_firmware(fw);
+				ADI_ERROR_RETURN(device->common.error.newAction);
+			}
+		}
+
+		prevGainIndex = gainIndex;
+		lineCount++;
+	}
+
+	maxGainIndex = gainIndex;
+	recoveryAction = adi_adrv9001_Rx_GainTable_Write(device, rxChannelMask, maxGainIndex, &rxGainTableRowBuffer[0], lineCount);
+	if (recoveryAction != ADI_COMMON_ACT_NO_ACTION)
+	{
+		ADI_ERROR_REPORT(&device->common,
+				 ADI_COMMON_ERRSRC_API,
+		   ADI_COMMON_ERR_INV_PARAM,
+		   ADI_COMMON_ACT_ERR_CHECK_PARAM,
+		   rxGainTablePath,
+		   "Unable to Write Rx gain table");
+		release_firmware(fw);
+		ADI_ERROR_RETURN(device->common.error.newAction);
+	}
+
+	recoveryAction = adi_adrv9001_Rx_MinMaxGainIndex_Set(device, rxChannelMask, minGainIndex, maxGainIndex);
+	if (recoveryAction != ADI_COMMON_ACT_NO_ACTION)
+	{
+		ADI_ERROR_REPORT(&device->common,
+				 ADI_COMMON_ERRSRC_API,
+		   ADI_COMMON_ERR_INV_PARAM,
+		   ADI_COMMON_ACT_ERR_CHECK_PARAM,
+		   rxGainTablePath,
+		   "Unable to set Rx gain table min/max gain indices.");
+		release_firmware(fw);
+		ADI_ERROR_RETURN(device->common.error.newAction);
+	}
+
+
+	release_firmware(fw);
+
+	return recoveryAction;
+
+
 #else
     static const uint8_t NUM_COLUMNS = 7;
 
@@ -965,8 +1145,99 @@ int32_t adi_adrv9001_Utilities_RxGainTable_Load(adi_adrv9001_Device_t *device, c
 
 int32_t adi_adrv9001_Utilities_TxAttenTable_Load(adi_adrv9001_Device_t *device, const char *txAttenTablePath, uint32_t txChannelMask)
 {
-#ifdef __KERNEL__ /* FIXME: Later */
-	return 0;
+#ifdef __KERNEL__
+	adi_hal_Cfg_t *hal = device->common.devHalInfo;
+	struct spi_device *spi = hal->spi;
+	const struct firmware *fw;
+	static const uint8_t NUM_COLUMNS = 3;
+	int32_t recoveryAction = ADI_COMMON_ACT_NO_ACTION;
+	uint16_t prevAttenIndex = 0;
+	uint16_t attenIndex = 0;
+	uint16_t minAttenIndex = 0;
+	uint16_t maxAttenIndex = ADRV9001_TX_ATTEN_TABLE_MAX;
+	uint16_t lineCount = 0;
+	uint16_t tableSize = 0;
+	static adi_adrv9001_TxAttenTableRow_t txAttenTableRowBuffer[ADI_ADRV9001_TX_ATTEN_TABLE_SIZE_ROWS];
+	int ret;
+	const char header[] = {"Tx Atten Index,Tx Atten Hp,Tx Atten Mult"};
+	char *line, *ptr;
+
+	/* Check device pointer is not null */
+	ADI_API_ENTRY_PTR_EXPECT(device, txAttenTablePath);
+
+	ret = request_firmware(&fw, txAttenTablePath, &spi->dev);
+	if (ret) {
+		dev_err(&spi->dev,
+			"request_firmware(%s) failed with %d\n", txAttenTablePath, ret);
+		return ret;
+	}
+
+	ptr = (char *) fw->data;
+
+	while ((line = strsep(&ptr, "\n"))  && (lineCount <  maxAttenIndex)) {
+		if (line >= (char *)fw->data + fw->size)
+			break;
+
+		line = skip_spaces(line);
+
+		if (sscanf(line,
+			"%hu,%hhu,%hu",
+			&attenIndex,
+			&txAttenTableRowBuffer[lineCount].txAttenHp,
+			&txAttenTableRowBuffer[lineCount].txAttenMult) != NUM_COLUMNS) {
+
+			ret = strncmp(line, header , strlen(header));
+			if (ret == 0)
+				continue;
+
+			ADI_ERROR_REPORT(&device->common,
+					 ADI_COMMON_ERRSRC_API,
+					ADI_COMMON_ERR_INV_PARAM,
+					ADI_COMMON_ACT_ERR_CHECK_PARAM,
+					lineCount,
+					"Insufficient entries in Tx atten table row entry");
+			release_firmware(fw);
+			ADI_ERROR_RETURN(device->common.error.newAction);
+		}
+
+		if (lineCount == 0) {
+			minAttenIndex = attenIndex;
+		} else {
+			/*Check that atten indices are arranged in ascending order*/
+			if (prevAttenIndex != (attenIndex - 1)) {
+				ADI_ERROR_REPORT(&device->common,
+						 ADI_COMMON_ERRSRC_API,
+		     				ADI_COMMON_ERR_INV_PARAM,
+						ADI_COMMON_ACT_ERR_CHECK_PARAM,
+						attenIndex,
+						"Atten indices not arranged in ascending order in Tx Atten Table file");
+				release_firmware(fw);
+				ADI_ERROR_RETURN(device->common.error.newAction);
+			}
+		}
+
+		prevAttenIndex = attenIndex;
+		lineCount++;
+	}
+
+	tableSize = attenIndex - minAttenIndex + 1;
+
+	recoveryAction = adi_adrv9001_Tx_AttenuationTable_Write(device, txChannelMask,
+								minAttenIndex, &txAttenTableRowBuffer[0], tableSize);
+	if (recoveryAction != ADI_COMMON_ACT_NO_ACTION) {
+		ADI_ERROR_REPORT(&device->common,
+				 ADI_COMMON_ERRSRC_API,
+				ADI_COMMON_ERR_INV_PARAM,
+				ADI_COMMON_ACT_ERR_CHECK_PARAM,
+				txAttenTablePath,
+				"Unable to write Tx Atten Table");
+		release_firmware(fw);
+		ADI_ERROR_RETURN(device->common.error.newAction);
+	}
+
+	release_firmware(fw);
+
+	return recoveryAction;
 #else
     static const uint8_t NUM_COLUMNS = 3;
 
@@ -1170,6 +1441,7 @@ int32_t adi_adrv9001_Utilities_TxAttenTable_Load(adi_adrv9001_Device_t *device, 
 int32_t adi_adrv9001_Utilities_ArmMemory_Dump(adi_adrv9001_Device_t *device, const char *binaryFilename)
 {
 #ifdef __KERNEL__ /* FIXME: Later */
+	BUG();
 	return 0;
 #else
     int32_t recoveryAction = ADI_COMMON_ACT_NO_ACTION;
