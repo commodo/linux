@@ -162,7 +162,7 @@ int32_t linux_LogWrite(void *devHalCfg, int32_t logLevel, const char *comment, v
 
 	halCfg = (adi_hal_Cfg_t *)devHalCfg;
 
-	if ((halCfg->logCfg.interfaceEnabled == 0) || (halCfg->logCfg.logLevel == (int32_t)ADI_HAL_LOG_NONE))
+	if (halCfg->logCfg.logLevel == (int32_t)ADI_HAL_LOG_NONE)
 	{
 		/* If logging disabled, exit gracefully */
 		halError = (int32_t)ADI_HAL_OK;
@@ -329,7 +329,7 @@ int32_t linux_SpiWrite(void *devHalCfg, const uint8_t txData[], uint32_t numTxBy
 		{
 			toWrite = (remaining > MAX_SIZE) ? MAX_SIZE : remaining;
 			result = spi_write(halCfg->spi, &txData[numTxBytes - remaining], toWrite);
-			if (result <= 0)
+			if (result < 0)
 			{
 				return ADI_HAL_SPI_FAIL;
 			}
@@ -387,7 +387,7 @@ int32_t linux_SpiRead(void *devHalCfg, const uint8_t txData[], uint8_t rxData[],
 			};
 
 			result = spi_sync_transfer(halCfg->spi, &t, 1);
-			if (result <= 0)
+			if (result < 0)
 			{
 				halError = ADI_HAL_SPI_FAIL;
 			}
@@ -520,14 +520,12 @@ int32_t linux_HwClose(void *devHalCfg)
  */
 int32_t linux_HwReset(void *devHalCfg, uint8_t pinLevel)
 {
-	adi_hal_Cfg_t *halCfg = NULL;
-	adi_hal_HwResetCfg_t *hwResetCfg = NULL;
-	int32_t halError = (int32_t)ADI_HAL_OK;
+	adi_hal_Cfg_t *halCfg;
+	adi_hal_HwResetCfg_t *hwResetCfg;;
 
 	if (devHalCfg == NULL)
 	{
-		halError = (int32_t)ADI_HAL_NULL_PTR;
-		return halError;
+		return ADI_HAL_NULL_PTR;
 	}
 
 	halCfg = (adi_hal_Cfg_t *)devHalCfg;
@@ -538,12 +536,9 @@ int32_t linux_HwReset(void *devHalCfg, uint8_t pinLevel)
 		return ADI_HAL_NULL_PTR;
 	}
 
-	if (hwResetCfg->interfaceEnabled > 0)
-	{
-		gpiod_set_value(halCfg->reset_gpio, pinLevel);
-	}
+	gpiod_set_value(halCfg->reset_gpio, pinLevel);
 
-	return halError;
+	return ADI_HAL_OK;
 }
 
 

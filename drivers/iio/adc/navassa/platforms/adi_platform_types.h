@@ -194,7 +194,8 @@ typedef struct adi_hal_Cfg
 #ifdef __KERNEL__
     struct spi_device *spi;
     struct gpio_desc *reset_gpio;
-#endif
+    struct gpio_desc *int_gpio;
+    #endif
 } adi_hal_Cfg_t;
 
 #ifdef __cplusplus
