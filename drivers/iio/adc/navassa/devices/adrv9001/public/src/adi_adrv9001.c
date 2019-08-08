@@ -703,7 +703,7 @@ int32_t adi_adrv9001_ApiVersionGet(adi_adrv9001_Device_t *device, adi_common_Api
     apiVersion->patch = 0;
     apiVersion->build = 0;
 
-    sscanf("%u.%u.%u.%u", version, &apiVersion->major, &apiVersion->minor,
+    sscanf(version, "%u.%u.%u.%u", &apiVersion->major, &apiVersion->minor,
 	  &apiVersion->patch, &apiVersion->build);
 
     ADI_API_RETURN(device);
