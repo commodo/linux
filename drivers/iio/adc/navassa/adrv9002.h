@@ -67,6 +67,9 @@
 #include "adi_adrv9001_version.h"
 
 
+#define ADRV_ADDRESS(port, chan)	((port) << 8 | (chan))
+#define ADRV_ADDRESS_PORT(addr)		((addr) >> 8)
+#define ADRV_ADDRESS_CHAN(addr)		((addr) & 0xFF)
 
 
 enum ad900x_device_id {
@@ -79,6 +82,22 @@ enum adrv9002_clocks {
 	TX1_SAMPL_CLK,
 	TX2_SAMPL_CLK,
 	NUM_ADRV9002_CLKS,
+};
+
+enum adrv9002_rx_ext_info {
+	RSSI,
+	RX_RF_BANDWIDTH,
+	RX_POWERDOWN,
+	RX_GAIN_CTRL_PIN_MODE,
+	RX_ENSM_MODE,
+};
+
+enum adrv9002_tx_ext_info {
+	TX_RF_BANDWIDTH,
+	TX_POWERDOWN,
+	TX_ATTN_CTRL_PIN_MODE,
+	TX_PA_PROTECTION,
+	TX_ENSM_MODE,
 };
 
 struct adrv9002_clock {
@@ -106,6 +125,7 @@ struct adrv9002_rf_phy {
 	adi_adrv9001_Device_t   adrv9001_device;
 	adi_adrv9001_Device_t   *adrv9001;
 	adi_hal_Cfg_t		hal;
+	adi_adrv9001_Init_t	*profile;
 
 	int			spi_device_id;
 

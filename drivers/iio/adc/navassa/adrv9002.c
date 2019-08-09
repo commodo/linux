@@ -1544,6 +1544,25 @@ int adrv9002_spi_write(struct spi_device *spi, unsigned reg, unsigned val)
 	return 0;
 }
 
+static int adrv9002_phy_reg_access(struct iio_dev *indio_dev,
+				   u32 reg, u32 writeval,
+				   u32 *readval)
+{
+	struct adrv9002_rf_phy *phy = iio_priv(indio_dev);
+	int ret;
+
+	mutex_lock(&indio_dev->mlock);
+	if (readval == NULL)
+		ret = adrv9002_spi_write(phy->spi, reg, writeval);
+	else {
+		*readval = adrv9002_spi_read(phy->spi, reg);
+		ret = 0;
+	}
+	mutex_unlock(&indio_dev->mlock);
+
+	return ret;
+}
+
 #define ADRV9002_MAX_CLK_NAME 79
 
 static char *adrv9002_clk_set_dev_name(struct adrv9002_rf_phy *phy,
@@ -1622,25 +1641,23 @@ static int adrv9002_clk_register(struct adrv9002_rf_phy *phy,
 	switch (source) {
 		case RX1_SAMPL_CLK:
 			init.ops = &bb_clk_ops;
-			clk_priv->rate = 15360000;//phy->talInit.rx.rxProfile.rxOutputRate_kHz;
+			clk_priv->rate = phy->profile->rx.rxChannelCfg[0].profile.rxOutputRate_Hz; /* TODO: check indexing */
 			break;
 		case RX2_SAMPL_CLK:
 			init.ops = &bb_clk_ops;
-			clk_priv->rate = 15360000;//phy->talInit.rx.rxProfile.rxOutputRate_kHz;
+			clk_priv->rate = phy->profile->rx.rxChannelCfg[1].profile.rxOutputRate_Hz;
 			break;
 		case TX1_SAMPL_CLK:
 			init.ops = &bb_clk_ops;
-			clk_priv->rate = 15360000;//phy->talInit.tx.txProfile.txInputRate_kHz;
+			clk_priv->rate = phy->profile->tx.txProfile[0].txInputRate_Hz;
 			break;
 		case TX2_SAMPL_CLK:
 			init.ops = &bb_clk_ops;
-			clk_priv->rate = 15360000;//phy->talInit.tx.txProfile.txInputRate_kHz;
+			clk_priv->rate = phy->profile->tx.txProfile[1].txInputRate_Hz;
 			break;
 		default:
 			return -EINVAL;
 	}
-
-	//clk_priv->rate *= 1000;
 
 	clk = devm_clk_register(&phy->spi->dev, &clk_priv->hw);
 	phy->clks[source] = clk;
@@ -1650,8 +1667,6 @@ static int adrv9002_clk_register(struct adrv9002_rf_phy *phy,
 
 enum lo_ext_info {
 	LOEXT_FREQ,
-	FHM_ENABLE,
-	FHM_HOP,
 };
 
 static ssize_t adrv9002_phy_lo_write(struct iio_dev *indio_dev,
@@ -1660,59 +1675,46 @@ static ssize_t adrv9002_phy_lo_write(struct iio_dev *indio_dev,
 				     const char *buf, size_t len)
 {
 	struct adrv9002_rf_phy *phy = iio_priv(indio_dev);
+	adi_adrv9001_RadioState_t radioState;
+	adi_common_Port_e port;
+	adi_common_ChannelNumber_e channel;
 	u64 readin;
-	u8 status;
-	u16 loop_bw;
-	bool enable;
 	int ret = 0;
 
+	port = ADRV_ADDRESS_PORT(chan->address);
+	channel = ADRV_ADDRESS_CHAN(chan->address);
+
 	switch (private) {
-		case LOEXT_FREQ:
+	case LOEXT_FREQ:
 
-			ret = kstrtoull(buf, 10, &readin);
-			if (ret)
-				return ret;
+		ret = kstrtoull(buf, 10, &readin);
+		if (ret)
+			return ret;
 
-// 			mutex_lock(&indio_dev->mlock);
-//
-// 			ret = adi_adrv9001_Radio_CarrierFrequency_Set(adi_adrv9001_Device_t *device,
-// 									adi_common_Port_e port,
-// 						   adi_common_ChannelNumber_e channel,
-// 						 ADI_ADRV9001_PLL_CAL_MODE_NORM,
-// 						 ADI_ADRV9001_MB_NOT_ALLOWED,
-// 						   readin);
-//
-// 			adrv9002_set_radio_state(phy, RADIO_FORCE_OFF);
-//
-// 			if (readin >= 3000000000ULL)
-// 				loop_bw = 300;
-// 			else
-// 				loop_bw = 50;
-//
-// 			if (loop_bw != phy->current_loopBandwidth_kHz[chan->channel]) {
-// 				TALISE_setPllLoopFilter(phy->talDevice, TAL_RF_PLL + chan->channel, loop_bw,
-// 							phy->loopFilter_stability);
-// 				phy->current_loopBandwidth_kHz[chan->channel] = loop_bw;
-// 			}
-//
-// 			ret = TALISE_setRfPllFrequency(phy->talDevice, TAL_RF_PLL + chan->channel,
-// 						       readin);
-// 			if (ret != TALACT_NO_ACTION) {
-// 				adrv9002_set_radio_state(phy, RADIO_RESTORE_STATE);
-// 				break;
-// 			}
-//
-// 			ret = TALISE_getPllsLockStatus(phy->talDevice, &status);
-// 			if (!((status & BIT(chan->channel + 1) || (ret != TALACT_NO_ACTION))))
-// 				ret = -EFAULT;
-//
-// 			phy->trx_lo_frequency = readin;
-// 			adrv9002_set_radio_state(phy, RADIO_RESTORE_STATE);
+		mutex_lock(&indio_dev->mlock);
+
+		ret = adi_adrv9001_Radio_State_Get(phy->adrv9001, &radioState);
+		if (ret)
 			break;
 
-		default:
-			ret = -EINVAL;
+		ret = adi_adrv9001_Radio_Channel_ToCalibrated(phy->adrv9001,
+					port, channel);
+		if (ret)
 			break;
+
+		ret = adi_adrv9001_Radio_CarrierFrequency_Set(phy->adrv9001,
+					port, channel,
+					ADI_ADRV9001_PLL_CAL_MODE_NORM,
+					ADI_ADRV9001_MB_NOT_ALLOWED,
+					readin);
+
+		ret = adi_adrv9001_Radio_Channel_ToState(phy->adrv9001,
+					port, channel,
+					radioState.channelStates[port][channel]);
+		break;
+	default:
+		ret = -EINVAL;
+		break;
 
 	}
 
@@ -1727,18 +1729,24 @@ static ssize_t adrv9002_phy_lo_read(struct iio_dev *indio_dev,
 				    char *buf)
 {
 	struct adrv9002_rf_phy *phy = iio_priv(indio_dev);
-
+	adi_common_Port_e port;
+	adi_common_ChannelNumber_e channel;
 	u64 val;
 	int ret;
 
+	port = ADRV_ADDRESS_PORT(chan->address);
+	channel = ADRV_ADDRESS_CHAN(chan->address);
+
 	mutex_lock(&indio_dev->mlock);
 	switch (private) {
-		case LOEXT_FREQ:
-// 			ret = TALISE_getRfPllFrequency(phy->talDevice, TAL_RF_PLL + chan->channel,
-// 						       &val);
-			break;
-		default:
-			ret = 0;
+	case LOEXT_FREQ:
+		ret = adi_adrv9001_Radio_CarrierFrequency_Get(phy->adrv9001,
+					port,channel, &val);
+
+
+		break;
+	default:
+		ret = 0;
 	}
 	mutex_unlock(&indio_dev->mlock);
 
@@ -1761,184 +1769,528 @@ static const struct iio_chan_spec_ext_info adrv9002_phy_ext_lo_info[] = {
 	{ },
 };
 
+static int adrv9002_set_agc_mode(struct iio_dev *indio_dev,
+				 const struct iio_chan_spec *chan, u32 mode)
+{
+	struct adrv9002_rf_phy *phy = iio_priv(indio_dev);
+	adi_adrv9001_RxGainCtrlMode_e val;
+	int ret;
+
+	switch (mode) {
+	case 0:
+		val = ADI_ADRV9001_MGC;
+		break;
+	case 1:
+		val = ADI_ADRV9001_AGC;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	ret = adi_adrv9001_Rx_GainCtrlMode_Set(phy->adrv9001,
+					       ADRV_ADDRESS_CHAN(chan->address),
+					       val);
+	if (ret)
+		return -EFAULT;
+
+	return 0;
+}
+
+static int adrv9002_get_agc_mode(struct iio_dev *indio_dev,
+				 const struct iio_chan_spec *chan)
+{
+	struct adrv9002_rf_phy *phy = iio_priv(indio_dev);
+	adi_adrv9001_RxGainCtrlMode_e gainCtrlMode;
+
+	adi_adrv9001_Rx_GainCtrlMode_Get(phy->adrv9001,
+		       ADRV_ADDRESS_CHAN(chan->address), &gainCtrlMode);
+
+	return (gainCtrlMode == ADI_ADRV9001_MGC) ? 0 : 1;
+}
+
+static const char * const adrv9002_agc_modes[] =
+	{"manual", "automatic"};
+
+static const struct iio_enum adrv9002_agc_modes_available = {
+	.items = adrv9002_agc_modes,
+	.num_items = ARRAY_SIZE(adrv9002_agc_modes),
+	.get = adrv9002_get_agc_mode,
+	.set = adrv9002_set_agc_mode,
+
+};
+
+
+static int adrv9002_set_ensm_mode(struct iio_dev *indio_dev,
+				 const struct iio_chan_spec *chan, u32 mode)
+{
+	struct adrv9002_rf_phy *phy = iio_priv(indio_dev);
+	int ret;
+
+	ret = adi_adrv9001_Radio_Channel_ToState(phy->adrv9001,
+						 ADRV_ADDRESS_PORT(chan->address),
+						 ADRV_ADDRESS_CHAN(chan->address),
+						 mode + 1);
+	if (ret)
+		return -EFAULT;
+
+	return 0;
+}
+
+static int adrv9002_get_ensm_mode(struct iio_dev *indio_dev,
+				 const struct iio_chan_spec *chan)
+{
+	struct adrv9002_rf_phy *phy = iio_priv(indio_dev);
+	adi_adrv9001_RadioState_t radioState;
+	int ret;
+
+	ret = adi_adrv9001_Radio_State_Get(phy->adrv9001, &radioState);
+	if (ret)
+		return -EFAULT;
+
+	return radioState.channelStates[ADRV_ADDRESS_PORT(chan->address)][ADRV_ADDRESS_CHAN(chan->address)] - 1;
+}
+
+static const char * const adrv9002_ensm_modes[] =
+	{"calibrated", "primed", "rf_enabled"};
+
+static const struct iio_enum adrv9002_ensm_modes_available = {
+	.items = adrv9002_ensm_modes,
+	.num_items = ARRAY_SIZE(adrv9002_ensm_modes),
+	.get = adrv9002_get_ensm_mode,
+	.set = adrv9002_set_ensm_mode,
+};
+
+static ssize_t adrv9002_phy_rx_write(struct iio_dev *indio_dev,
+				     uintptr_t private,
+				     const struct iio_chan_spec *chan,
+				     const char *buf, size_t len)
+{
+	struct adrv9002_rf_phy *phy = iio_priv(indio_dev);
+	adi_common_Port_e port;
+	adi_common_ChannelNumber_e channel;
+	bool enable;
+	int ret = 0;
+	u16 dec_pwr_mdb;
+
+	ret = strtobool(buf, &enable);
+	if (ret)
+		return ret;
+
+	port = ADRV_ADDRESS_PORT(chan->address);
+	channel = ADRV_ADDRESS_CHAN(chan->address);
+
+	mutex_lock(&indio_dev->mlock);
+
+	switch (private) {
+	case RSSI:
+		break;
+	case RX_GAIN_CTRL_PIN_MODE:
+
+		break;
+	default:
+		ret = -EINVAL;
+	}
+
+out:
+	mutex_unlock(&indio_dev->mlock);
+
+	return ret ? ret : len;
+}
+
+
+
+static ssize_t adrv9002_phy_rx_read(struct iio_dev *indio_dev,
+				    uintptr_t private,
+				    const struct iio_chan_spec *chan,
+				    char *buf)
+{
+	struct adrv9002_rf_phy *phy = iio_priv(indio_dev);
+	int ret = 0;
+	u16 dec_pwr_mdb;
+
+	mutex_lock(&indio_dev->mlock);
+
+	switch (private) {
+	case RSSI:
+		ret = adi_adrv9001_Rx_DecimatedPower_Get(phy->adrv9001,
+							 ADRV_ADDRESS_CHAN(chan->address),
+					   &dec_pwr_mdb);
+
+		if (ret == 0)
+			ret = sprintf(buf, "%u.%02u dB\n",
+				      dec_pwr_mdb / 1000,
+		 dec_pwr_mdb % 1000);
+		break;
+
+	case RX_RF_BANDWIDTH:
+		ret = phy->profile->rx.rxChannelCfg[chan->channel].profile.primarySigBandwidth_Hz;
+		if (ret > 0)
+			ret = sprintf(buf, "%u\n", ret);
+		break;
+	case RX_GAIN_CTRL_PIN_MODE:
+		break;
+	default:
+		ret = -EINVAL;
+
+	}
+
+	mutex_unlock(&indio_dev->mlock);
+
+	return ret;
+}
+
+#define _ADRV9002_EXT_RX_INFO(_name, _ident) { \
+.name = _name, \
+.read = adrv9002_phy_rx_read, \
+.write = adrv9002_phy_rx_write, \
+.private = _ident, \
+}
+
+
+static ssize_t adrv9002_phy_tx_read(struct iio_dev *indio_dev,
+				    uintptr_t private,
+				    const struct iio_chan_spec *chan,
+				    char *buf)
+{
+	struct adrv9002_rf_phy *phy = iio_priv(indio_dev);
+	adi_common_Port_e port;
+	adi_common_ChannelNumber_e channel;
+	adi_adrv9001_TxAttenMode_e mode;
+	int val, ret = 0;
+
+	port = ADRV_ADDRESS_PORT(chan->address);
+	channel = ADRV_ADDRESS_CHAN(chan->address);
+
+	mutex_lock(&indio_dev->mlock);
+	switch (private) {
+	case TX_RF_BANDWIDTH:
+		val = phy->profile->tx.txProfile[chan->channel].primarySigBandwidth_Hz;
+		break;
+	case TX_ATTN_CTRL_PIN_MODE:
+
+		ret = adi_adrv9001_Tx_AttenuationMode_Get(phy->adrv9001,
+							    channel,
+							    &mode);
+		if (ret)
+			break;
+		val = (mode == ADI_ADRV9001_TXATTEN_GPIO_MODE);
+		break;
+	case TX_PA_PROTECTION:
+		break;
+
+	default:
+		ret = -EINVAL;
+
+	}
+
+	if (ret == 0)
+		ret = sprintf(buf, "%d\n", val);
+
+	mutex_unlock(&indio_dev->mlock);
+
+	return ret;
+}
+
+static ssize_t adrv9002_phy_tx_write(struct iio_dev *indio_dev,
+				     uintptr_t private,
+				     const struct iio_chan_spec *chan,
+				     const char *buf, size_t len)
+{
+	struct adrv9002_rf_phy *phy = iio_priv(indio_dev);
+	adi_common_Port_e port;
+	adi_common_ChannelNumber_e channel;
+	port = ADRV_ADDRESS_PORT(chan->address);
+	channel = ADRV_ADDRESS_CHAN(chan->address);
+	bool enable;
+	int ret = 0;
+
+	ret = strtobool(buf, &enable);
+	if (ret)
+		return ret;
+
+	mutex_lock(&indio_dev->mlock);
+
+	switch (private) {
+	case TX_ATTN_CTRL_PIN_MODE:
+		ret =  adi_adrv9001_Tx_AttenuationMode_Set(phy->adrv9001,
+				channel,
+				enable ? ADI_ADRV9001_TXATTEN_GPIO_MODE : ADI_ADRV9001_TXATTEN_SPI_ATTEN_MODE);
+
+
+		break;
+	case TX_PA_PROTECTION:
+		break;
+
+	default:
+		ret = -EINVAL;
+
+	}
+
+	mutex_unlock(&indio_dev->mlock);
+
+	return ret ? ret : len;
+}
+
+#define _ADRV9002_EXT_TX_INFO(_name, _ident) { \
+.name = _name, \
+.read = adrv9002_phy_tx_read, \
+.write = adrv9002_phy_tx_write, \
+.private = _ident, \
+}
+
+static const struct iio_chan_spec_ext_info adrv9002_phy_rx_ext_info[] = {
+	/* Ideally we use IIO_CHAN_INFO_FREQUENCY, but there are
+	 * values > 2^32 in order to support the entire frequency range
+	 * in Hz. Using scale is a bit ugly.
+	 */
+	IIO_ENUM_AVAILABLE_SHARED("ensm_mode", 0,  &adrv9002_ensm_modes_available),
+	IIO_ENUM("ensm_mode", false, &adrv9002_ensm_modes_available),
+	IIO_ENUM_AVAILABLE_SHARED("gain_control_mode", 0,  &adrv9002_agc_modes_available),
+	IIO_ENUM("gain_control_mode", false, &adrv9002_agc_modes_available),
+	_ADRV9002_EXT_RX_INFO("rssi", RSSI),
+	_ADRV9002_EXT_RX_INFO("rf_bandwidth", RX_RF_BANDWIDTH),
+	_ADRV9002_EXT_RX_INFO("gain_control_pin_mode_en", RX_GAIN_CTRL_PIN_MODE),
+	{ },
+};
+
+static struct iio_chan_spec_ext_info adrv9002_phy_tx_ext_info[] = {
+	IIO_ENUM_AVAILABLE_SHARED("ensm_mode", 0,  &adrv9002_ensm_modes_available),
+	IIO_ENUM("ensm_mode", false, &adrv9002_ensm_modes_available),
+	_ADRV9002_EXT_TX_INFO("rf_bandwidth", TX_RF_BANDWIDTH),
+	_ADRV9002_EXT_TX_INFO("atten_control_pin_mode_en", TX_ATTN_CTRL_PIN_MODE),
+//	_ADRV9002_EXT_TX_INFO("pa_protection_en", TX_PA_PROTECTION),
+	{ },
+};
+
+static int adrv9002_phy_read_raw(struct iio_dev *indio_dev,
+				 struct iio_chan_spec const *chan,
+				 int *val,
+				 int *val2,
+				 long m)
+{
+	struct adrv9002_rf_phy *phy = iio_priv(indio_dev);
+	adi_common_ChannelNumber_e channel;
+	u16 temp;
+	int ret;
+
+
+	channel = ADRV_ADDRESS_CHAN(chan->address);
+
+	mutex_lock(&indio_dev->mlock);
+	switch (m) {
+	case IIO_CHAN_INFO_HARDWAREGAIN:
+		if (chan->output) {
+			u16 atten_mdb;
+
+			ret = adi_adrv9001_Tx_Attenuation_Get(phy->adrv9001,
+							      channel,
+							      &atten_mdb);
+			if (ret)
+				break;
+
+			*val = -1 * (atten_mdb / 1000);
+			*val2 = (atten_mdb % 1000) * 1000;
+			if (!*val)
+				*val2 *= -1;
+			ret = IIO_VAL_INT_PLUS_MICRO_DB;
+
+		} else {
+			adi_adrv9001_RxGainCtrlMode_e gainCtrlMode;
+			u8 index;
+
+			ret = adi_adrv9001_Rx_GainCtrlMode_Get(phy->adrv9001,
+							       channel, &gainCtrlMode);
+			if (ret)
+				break;
+
+			switch (gainCtrlMode) {
+			case ADI_ADRV9001_MGC:
+				ret = adi_adrv9001_Rx_MgcGain_Get(phy->adrv9001, channel, &index);
+				break;
+			case ADI_ADRV9001_AGC:
+				ret = adi_adrv9001_Rx_Gain_Get(phy->adrv9001, channel, &index);
+				break;
+			default:
+				ret = -EINVAL;
+			}
+
+			if (ret)
+				break;
+
+// 			ret = adrv9002_gainindex_to_gain(phy, chan->channel,
+// 							 index, val, val2);
+
+			*val = index;
+			ret = IIO_VAL_INT;
+		}
+
+		break;
+	case IIO_CHAN_INFO_SAMP_FREQ:
+		if (chan->output) {
+			switch (channel) {
+			case ADI_CHANNEL_1:
+				*val = clk_get_rate(phy->clks[TX1_SAMPL_CLK]);
+				break;
+			case ADI_CHANNEL_2:
+				*val = clk_get_rate(phy->clks[TX2_SAMPL_CLK]);
+				break;
+			}
+		} else {
+			switch (channel) {
+			case ADI_CHANNEL_1:
+				*val = clk_get_rate(phy->clks[RX1_SAMPL_CLK]);
+				break;
+			case ADI_CHANNEL_2:
+				*val = clk_get_rate(phy->clks[RX2_SAMPL_CLK]);
+				break;
+			}
+		}
+
+		ret = IIO_VAL_INT;
+		break;
+	case IIO_CHAN_INFO_PROCESSED:
+		ret = adi_adrv9001_Temperature_Get(phy->adrv9001, &temp);
+		if (ret)
+			break;
+		*val = temp * 1000;
+		ret = IIO_VAL_INT;
+		break;
+	default:
+		ret = -EINVAL;
+	}
+
+	mutex_unlock(&indio_dev->mlock);
+
+	return ret;
+};
+
+static int adrv9002_phy_write_raw(struct iio_dev *indio_dev,
+				  struct iio_chan_spec const *chan,
+				  int val,
+				  int val2,
+				  long mask)
+{
+	struct adrv9002_rf_phy *phy = iio_priv(indio_dev);
+	adi_common_ChannelNumber_e channel;
+	u32 code;
+	int ret = 0;
+
+	channel = ADRV_ADDRESS_CHAN(chan->address);
+
+	mutex_lock(&indio_dev->mlock);
+	switch (mask) {
+	case IIO_CHAN_INFO_HARDWAREGAIN:
+		if (chan->output) {
+			if (val > 0 || (val == 0 && val2 > 0)) {
+				ret = -EINVAL;
+				goto out;
+			}
+
+			code = ((abs(val) * 1000) + (abs(val2) / 1000));
+
+			ret = adi_adrv9001_Tx_Attenuation_Set(phy->adrv9001, channel, code);
+		} else {
+// 			ret = adrv9002_gain_to_gainindex(phy, chan->channel,
+// 							 val, val2, &code);
+// 			if (ret < 0)
+// 				break;
+
+			ret = adi_adrv9001_Rx_Gain_Set(phy->adrv9001, channel, val);
+		}
+		break;
+	case IIO_CHAN_INFO_SAMP_FREQ:
+		break;
+
+	default:
+		ret = -EINVAL;
+	}
+out:
+	mutex_unlock(&indio_dev->mlock);
+
+	if (ret)
+		adi_common_ErrorClear(&phy->adrv9001->common);
+
+	return ret;
+}
 
 static const struct iio_chan_spec adrv9002_phy_chan[] = {
-	{	/* RX LO */
+	{	/* RX1 LO */
 		.type = IIO_ALTVOLTAGE,
 		.indexed = 1,
 		.output = 1,
 		.channel = 0,
-		.extend_name = "RX_LO",
+		.extend_name = "RX1_LO",
 		.ext_info = adrv9002_phy_ext_lo_info,
-	}, {	/* TX_LO */
+		.address = ADRV_ADDRESS(ADI_RX, ADI_CHANNEL_1),
+	}, {	/* RX2_LO */
 		.type = IIO_ALTVOLTAGE,
 		.indexed = 1,
 		.output = 1,
 		.channel = 1,
-		.extend_name = "TX_LO",
+		.extend_name = "RX2_LO",
 		.ext_info = adrv9002_phy_ext_lo_info,
-	}, /*{*/	/* TX1 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.output = 1,
-// 		.channel = 0,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_HARDWAREGAIN),
-// 		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SAMP_FREQ),
-// 		.ext_info = adrv9002_phy_tx_ext_info,
-// 	}, {	/* RX1 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.channel = CHAN_RX1,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_HARDWAREGAIN) | BIT(IIO_CHAN_INFO_SAMP_FREQ),
-// 		.ext_info = adrv9002_phy_rx_ext_info,
-// 	}, {	/* TX2 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.output = 1,
-// 		.channel = 1,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_HARDWAREGAIN),
-// 		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SAMP_FREQ),
-// 		.ext_info = adrv9002_phy_tx_ext_info,
-// 	}, {	/* RX2 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.channel = CHAN_RX2,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_HARDWAREGAIN) | BIT(IIO_CHAN_INFO_SAMP_FREQ),
-// 		.ext_info = adrv9002_phy_rx_ext_info,
-// 	}, {	/* RX Sniffer/Observation */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.channel = CHAN_OBS_RX1,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_HARDWAREGAIN) | BIT(IIO_CHAN_INFO_SAMP_FREQ),
-// 		.ext_info = adrv9002_phy_obs_rx_ext_info,
-// 	}, {	/* RX Sniffer/Observation */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.channel = CHAN_OBS_RX2,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_HARDWAREGAIN) | BIT(IIO_CHAN_INFO_SAMP_FREQ),
-// 		.ext_info = adrv9002_phy_obs_rx_ext_info,
-// 	}, {	/* AUXADC0 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.channel = CHAN_AUXADC0,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
-// 		BIT(IIO_CHAN_INFO_SCALE) | BIT(IIO_CHAN_INFO_OFFSET),
-// 	}, {	/* AUXADC1 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.channel = CHAN_AUXADC1,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
-// 		BIT(IIO_CHAN_INFO_SCALE) | BIT(IIO_CHAN_INFO_OFFSET),
-// 	}, {	/* AUXADC2 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.channel = CHAN_AUXADC2,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
-// 		BIT(IIO_CHAN_INFO_SCALE) | BIT(IIO_CHAN_INFO_OFFSET),
-// 	}, {	/* AUXADC3 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.channel = CHAN_AUXADC3,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
-// 		BIT(IIO_CHAN_INFO_SCALE) | BIT(IIO_CHAN_INFO_OFFSET),
-// 	}, {	/* AUXDAC0 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.output = 1,
-// 		.channel = CHAN_AUXDAC0,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
-// 		BIT(IIO_CHAN_INFO_SCALE) | BIT(IIO_CHAN_INFO_OFFSET),
-// 	}, {	/* AUXDAC1 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.output = 1,
-// 		.channel = CHAN_AUXDAC1,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
-// 		BIT(IIO_CHAN_INFO_SCALE) | BIT(IIO_CHAN_INFO_OFFSET),
-// 	}, {	/* AUXDAC2 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.output = 1,
-// 		.channel = CHAN_AUXDAC2,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
-// 		BIT(IIO_CHAN_INFO_SCALE) | BIT(IIO_CHAN_INFO_OFFSET),
-// 	}, {	/* AUXDAC3 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.output = 1,
-// 		.channel = CHAN_AUXDAC3,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
-// 		BIT(IIO_CHAN_INFO_SCALE) | BIT(IIO_CHAN_INFO_OFFSET),
-// 	}, {	/* AUXDAC4 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.output = 1,
-// 		.channel = CHAN_AUXDAC4,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
-// 		BIT(IIO_CHAN_INFO_SCALE) | BIT(IIO_CHAN_INFO_OFFSET),
-// 	}, {	/* AUXDAC5 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.output = 1,
-// 		.channel = CHAN_AUXDAC5,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
-// 		BIT(IIO_CHAN_INFO_SCALE) | BIT(IIO_CHAN_INFO_OFFSET),
-// 	}, {	/* AUXDAC6 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.output = 1,
-// 		.channel = CHAN_AUXDAC6,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
-// 		BIT(IIO_CHAN_INFO_SCALE) | BIT(IIO_CHAN_INFO_OFFSET),
-// 	}, {	/* AUXDAC7 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.output = 1,
-// 		.channel = CHAN_AUXDAC7,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
-// 		BIT(IIO_CHAN_INFO_SCALE) | BIT(IIO_CHAN_INFO_OFFSET),
-// 	}, {	/* AUXDAC8 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.output = 1,
-// 		.channel = CHAN_AUXDAC8,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
-// 		BIT(IIO_CHAN_INFO_SCALE) | BIT(IIO_CHAN_INFO_OFFSET),
-// 	}, {	/* AUXDAC9 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.output = 1,
-// 		.channel = CHAN_AUXDAC9,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
-// 		BIT(IIO_CHAN_INFO_SCALE) | BIT(IIO_CHAN_INFO_OFFSET),
-// 	}, {	/* AUXDAC10 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.output = 1,
-// 		.channel = CHAN_AUXDAC10,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
-// 		BIT(IIO_CHAN_INFO_SCALE),
-// 	}, {	/* AUXDAC11 */
-// 		.type = IIO_VOLTAGE,
-// 		.indexed = 1,
-// 		.output = 1,
-// 		.channel = CHAN_AUXDAC11,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
-// 		BIT(IIO_CHAN_INFO_SCALE),
-// 	}, {
-// 		.type = IIO_TEMP,
-// 		.indexed = 1,
-// 		.channel = 0,
-// 		.info_mask_separate = BIT(IIO_CHAN_INFO_PROCESSED),
-// 	},
+		.address = ADRV_ADDRESS(ADI_RX, ADI_CHANNEL_2),
+	},{	/* TX1 LO */
+		.type = IIO_ALTVOLTAGE,
+		.indexed = 1,
+		.output = 1,
+		.channel = 2,
+		.extend_name = "TX1_LO",
+		.ext_info = adrv9002_phy_ext_lo_info,
+		.address = ADRV_ADDRESS(ADI_TX, ADI_CHANNEL_1),
+	}, {	/* TX2_LO */
+		.type = IIO_ALTVOLTAGE,
+		.indexed = 1,
+		.output = 1,
+		.channel = 3,
+		.extend_name = "TX2_LO",
+		.ext_info = adrv9002_phy_ext_lo_info,
+		.address = ADRV_ADDRESS(ADI_TX, ADI_CHANNEL_2),
+	}, {	/* TX1 */
+		.type = IIO_VOLTAGE,
+		.indexed = 1,
+		.output = 1,
+		.channel = 0,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_HARDWAREGAIN) | BIT(IIO_CHAN_INFO_SAMP_FREQ),
+		//.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SAMP_FREQ),
+		.ext_info = adrv9002_phy_tx_ext_info,
+		.address = ADRV_ADDRESS(ADI_TX, ADI_CHANNEL_1),
+	}, {	/* RX1 */
+		.type = IIO_VOLTAGE,
+		.indexed = 1,
+		.channel = 0,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_HARDWAREGAIN) | BIT(IIO_CHAN_INFO_SAMP_FREQ),
+		.ext_info = adrv9002_phy_rx_ext_info,
+		.address = ADRV_ADDRESS(ADI_RX, ADI_CHANNEL_1),
+	}, {	/* TX2 */
+		.type = IIO_VOLTAGE,
+		.indexed = 1,
+		.output = 1,
+		.channel = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_HARDWAREGAIN) | BIT(IIO_CHAN_INFO_SAMP_FREQ),
+		//.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SAMP_FREQ),
+		.ext_info = adrv9002_phy_tx_ext_info,
+		.address = ADRV_ADDRESS(ADI_TX, ADI_CHANNEL_2),
+
+	}, {	/* RX2 */
+		.type = IIO_VOLTAGE,
+		.indexed = 1,
+		.channel = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_HARDWAREGAIN) | BIT(IIO_CHAN_INFO_SAMP_FREQ),
+		.ext_info = adrv9002_phy_rx_ext_info,
+		.address = ADRV_ADDRESS(ADI_RX, ADI_CHANNEL_2),
+	}, {
+		.type = IIO_TEMP,
+		.indexed = 1,
+		.channel = 0,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_PROCESSED),
+	},
 };
 
-
-
 static const struct iio_info adrv9002_phy_info = {
-// 	.read_raw = &adrv9002_phy_read_raw,
-// 	.write_raw = &adrv9002_phy_write_raw,
-// 	.debugfs_reg_access = &adrv9002_phy_reg_access,
+	.read_raw = &adrv9002_phy_read_raw,
+	.write_raw = &adrv9002_phy_write_raw,
+	.debugfs_reg_access = &adrv9002_phy_reg_access,
 // 	.attrs = &adrv9002_phy_attribute_group,
 	.driver_module = THIS_MODULE,
 };
@@ -2020,6 +2372,10 @@ static int adrv9002_setup(struct adrv9002_rf_phy *phy, adi_adrv9001_Init_t *adrv
 	static const uint8_t TX_CHANNEL_MASK_OFFSET = 4;
 	int ret;
 
+	phy->profile = adrv9001Init;
+
+
+
 	adi_adrv9001_SpiSettings_t spiSettings = {
 		.msbFirst = 1,
 		.enSpiStreaming = 0,
@@ -2093,7 +2449,6 @@ static int adrv9002_probe(struct spi_device *spi)
 	struct iio_dev *indio_dev;
 	struct adrv9002_rf_phy *phy;
 	struct clk *clk = NULL;
-	const char *name;
 	adi_common_ApiVersion_t apiVersion;
 	adi_adrv9001_ArmVersion_t armVersion;
 	int ret, i;
@@ -2216,7 +2571,6 @@ out_clk_del_provider:
 	of_clk_del_provider(spi->dev.of_node);
 out_disable_clocks:
 	clk_disable_unprepare(phy->dev_clk);
-out_unregister_notifier:
 
 	return ret;
 }
