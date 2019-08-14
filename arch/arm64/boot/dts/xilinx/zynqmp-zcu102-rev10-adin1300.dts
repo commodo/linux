@@ -1,0 +1,12 @@
+
+#include "zynqmp-zcu102-rev1.0.dts"
+
+&gem0 {
+	status = "okay";
+	phy-mode = "rgmii";
+	phy-handle = <&ethernet_gem0_phy0>;
+
+	ethernet_gem0_phy0: ethernet-phy@0 {
+		reg = <0>;
+	};
+};
