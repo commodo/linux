@@ -121,11 +121,14 @@ struct adrv9002_rf_phy {
 	struct clk 		*clks[NUM_ADRV9002_CLKS];
 	struct adrv9002_clock	clk_priv[NUM_ADRV9002_CLKS];
 	struct clk_onecell_data	clk_data;
+	struct bin_attribute 	bin;
+	char			*bin_attr_buf;
 
 	adi_adrv9001_Device_t   adrv9001_device;
 	adi_adrv9001_Device_t   *adrv9001;
 	adi_hal_Cfg_t		hal;
-	adi_adrv9001_Init_t	*profile;
+	adi_adrv9001_Init_t	*curr_profile;
+	adi_adrv9001_Init_t	profile;
 
 	int			spi_device_id;
 
