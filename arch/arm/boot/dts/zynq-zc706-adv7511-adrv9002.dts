@@ -123,7 +123,7 @@
 	axi_adrv9002_core_rx1: axi-adrv9002-rx1-lpc@44a00000 {
 		compatible = "adi,axi-ad9643-6.00.a";
 		//compatible = "adi,axi-adrv9002-1.00.a";
-		reg = <0x44A00000 0x1000>;
+		reg = <0x44A08000 0x8000>;
 		clocks = <&adc0_adrv9002 0>;
 		dmas = <&rx1_dma 0>;
 		dma-names = "rx";
@@ -134,7 +134,7 @@
 	axi_adrv9002_core_rx2: axi-adrv9002-rx2-lpc@44a02000 {
 		compatible = "adi,axi-adrv9009-obs-single-1.0";
 		//compatible = "adi,axi-adrv9002-1.00.a";
-		reg = <0x44A02000 0x1000>;
+		reg = <0x44A01000 0x1000>;
 		clocks = <&adc0_adrv9002 1>;
 		clock-names = "sampl_clk";
 		dmas = <&rx2_dma 0>;
@@ -144,7 +144,7 @@
 	axi_adrv9002_core_tx1: axi-adrv9002-tx1-lpc@44a04000 {
 		compatible = "adi,axi-ad9364-dds-6.00.a";
 		//compatible = "adi,axi-adrv9002-dds-1.00.a";
-		reg = <0x44A04000 0x1000>;
+		reg = <0x44A02000 0x1000>;
 		clocks = <&adc0_adrv9002 2>;
 		clock-names = "sampl_clk";
 		dmas = <&tx1_dma 0>;
@@ -156,7 +156,7 @@
 	axi_adrv9002_core_tx2: axi-adrv9002-tx2-lpc@44a08000 {
 		compatible = "adi,axi-ad9364-dds-6.00.a";
 		//compatible = "adi,axi-adrv9002-dds-1.00.a";
-		reg = <0x44A08000 0x1000>;
+		reg = <0x44A04000 0x1000>;
 		clocks = <&adc0_adrv9002 3>;
 		clock-names = "sampl_clk";
 		dmas = <&tx2_dma 0>;
