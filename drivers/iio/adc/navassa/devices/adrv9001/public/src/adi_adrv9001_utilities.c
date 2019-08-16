@@ -728,7 +728,7 @@ int32_t adi_adrv9001_Utilities_Resources_Load(adi_adrv9001_Device_t *device, adi
     adi_common_LogLevelGet(&device->common, &origLogLevel);
     ADI_ERROR_RETURN(device->common.error.newAction);
 
-    logLevelNoSpi = ADI_COMMON_LOG_MSG | ADI_COMMON_LOG_WARN | ADI_COMMON_LOG_ERR | ADI_COMMON_LOG_API; /*Disable SPI logging*/
+    logLevelNoSpi = origLogLevel & ~ADI_COMMON_LOG_SPI; /*Disable SPI logging*/
 
     adi_common_LogLevelSet(&device->common, logLevelNoSpi);
     ADI_ERROR_RETURN(device->common.error.newAction);
@@ -755,6 +755,8 @@ int32_t adi_adrv9001_Utilities_Resources_Load(adi_adrv9001_Device_t *device, adi
 #if ADI_ADRV9001_DEVICE_NOT_CONNECTED > 0
     adi_common_ErrorClear(&device->common);
 #endif
+    /* Enable SPI logging */
+    adi_common_LogLevelSet(&device->common, origLogLevel);
     ADI_API_RETURN(device);
 #endif
 
