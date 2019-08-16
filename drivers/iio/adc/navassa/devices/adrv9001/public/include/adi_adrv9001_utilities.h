@@ -34,6 +34,8 @@ extern "C" {
 int32_t adi_adrv9001_Utilities_DeviceProfile_Load(adi_adrv9001_Device_t *device, const char *profileFilename, adi_adrv9001_Init_t *init);
 
 
+int32_t adi_adrv9001_Utilities_DeviceProfile_Parse(adi_adrv9001_Device_t *device, adi_adrv9001_Init_t *init, char *jsonBuffer, uint32_t length);
+
 
 /**
 * \brief This utility function loads ADRV9001 ARM binary image through ArmImageWrite() API
