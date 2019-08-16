@@ -830,7 +830,7 @@ int32_t adi_adrv9001_Utilities_RxGainTable_Load(adi_adrv9001_Device_t *device, c
 	static const uint8_t NUM_COLUMNS = 7;
 	int ret;
 	const char header[] = {"Gain Index,FE Control Word,TIA Control,ADC Control,Ext Control,Phase Offset,Digital Gain"};
-	char *line, *ptr;
+	char *line, *ptr, *tmp;
 
 	/* Check device pointer is not null */
 	ADI_API_ENTRY_PTR_EXPECT(device, rxGainTablePath);
@@ -842,10 +842,11 @@ int32_t adi_adrv9001_Utilities_RxGainTable_Load(adi_adrv9001_Device_t *device, c
 		return ret;
 	}
 
-	ptr = (char *) fw->data;
+	tmp = ptr = devm_kzalloc(&spi->dev, fw->size, GFP_KERNEL);
+	memcpy(ptr, fw->data, fw->size);
 
 	while ((line = strsep(&ptr, "\n"))  && (lineCount <  ADI_ADRV9001_RX_GAIN_TABLE_SIZE_ROWS)) {
-		if (line >= (char *)fw->data + fw->size)
+		if (line >= tmp + fw->size)
 			break;
 
 		line = skip_spaces(line);
@@ -871,6 +872,7 @@ int32_t adi_adrv9001_Utilities_RxGainTable_Load(adi_adrv9001_Device_t *device, c
 					lineCount,
 					"Insufficient entries in Rx gain table row entry");
 			release_firmware(fw);
+			devm_kfree(&spi->dev, tmp);
 			ADI_ERROR_RETURN(device->common.error.newAction);
 		}
 
@@ -892,6 +894,7 @@ int32_t adi_adrv9001_Utilities_RxGainTable_Load(adi_adrv9001_Device_t *device, c
 		     gainIndex,
 		     "Gain indices not arranged in ascending order in Rx Gain Table file");
 				release_firmware(fw);
+				devm_kfree(&spi->dev, tmp);
 				ADI_ERROR_RETURN(device->common.error.newAction);
 			}
 		}
@@ -912,6 +915,7 @@ int32_t adi_adrv9001_Utilities_RxGainTable_Load(adi_adrv9001_Device_t *device, c
 		   rxGainTablePath,
 		   "Unable to Write Rx gain table");
 		release_firmware(fw);
+		devm_kfree(&spi->dev, tmp);
 		ADI_ERROR_RETURN(device->common.error.newAction);
 	}
 
@@ -925,11 +929,13 @@ int32_t adi_adrv9001_Utilities_RxGainTable_Load(adi_adrv9001_Device_t *device, c
 		   rxGainTablePath,
 		   "Unable to set Rx gain table min/max gain indices.");
 		release_firmware(fw);
+		devm_kfree(&spi->dev, tmp);
 		ADI_ERROR_RETURN(device->common.error.newAction);
 	}
 
 
 	release_firmware(fw);
+	devm_kfree(&spi->dev, tmp);
 
 	return recoveryAction;
 
@@ -1234,7 +1240,7 @@ int32_t adi_adrv9001_Utilities_TxAttenTable_Load(adi_adrv9001_Device_t *device, 
 	static adi_adrv9001_TxAttenTableRow_t txAttenTableRowBuffer[ADI_ADRV9001_TX_ATTEN_TABLE_SIZE_ROWS];
 	int ret;
 	const char header[] = {"Tx Atten Index,Tx Atten Hp,Tx Atten Mult"};
-	char *line, *ptr;
+	char *line, *ptr, *tmp;
 
 	/* Check device pointer is not null */
 	ADI_API_ENTRY_PTR_EXPECT(device, txAttenTablePath);
@@ -1246,10 +1252,11 @@ int32_t adi_adrv9001_Utilities_TxAttenTable_Load(adi_adrv9001_Device_t *device, 
 		return ret;
 	}
 
-	ptr = (char *) fw->data;
+	tmp= ptr = devm_kzalloc(&spi->dev, fw->size, GFP_KERNEL);
+	memcpy(ptr, fw->data, fw->size);
 
 	while ((line = strsep(&ptr, "\n"))  && (lineCount <  maxAttenIndex)) {
-		if (line >= (char *)fw->data + fw->size)
+		if (line >= tmp + fw->size)
 			break;
 
 		line = skip_spaces(line);
@@ -1271,6 +1278,7 @@ int32_t adi_adrv9001_Utilities_TxAttenTable_Load(adi_adrv9001_Device_t *device, 
 					lineCount,
 					"Insufficient entries in Tx atten table row entry");
 			release_firmware(fw);
+			devm_kfree(&spi->dev, tmp);
 			ADI_ERROR_RETURN(device->common.error.newAction);
 		}
 
@@ -1286,6 +1294,7 @@ int32_t adi_adrv9001_Utilities_TxAttenTable_Load(adi_adrv9001_Device_t *device, 
 						attenIndex,
 						"Atten indices not arranged in ascending order in Tx Atten Table file");
 				release_firmware(fw);
+				devm_kfree(&spi->dev, tmp);
 				ADI_ERROR_RETURN(device->common.error.newAction);
 			}
 		}
@@ -1306,10 +1315,12 @@ int32_t adi_adrv9001_Utilities_TxAttenTable_Load(adi_adrv9001_Device_t *device, 
 				txAttenTablePath,
 				"Unable to write Tx Atten Table");
 		release_firmware(fw);
+		devm_kfree(&spi->dev, tmp);
 		ADI_ERROR_RETURN(device->common.error.newAction);
 	}
 
 	release_firmware(fw);
+	devm_kfree(&spi->dev, tmp);
 
 	return recoveryAction;
 #else
