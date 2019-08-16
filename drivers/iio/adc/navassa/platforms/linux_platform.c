@@ -521,7 +521,6 @@ int32_t linux_HwClose(void *devHalCfg)
 int32_t linux_HwReset(void *devHalCfg, uint8_t pinLevel)
 {
 	adi_hal_Cfg_t *halCfg;
-	adi_hal_HwResetCfg_t *hwResetCfg;;
 
 	if (devHalCfg == NULL)
 	{
@@ -529,12 +528,6 @@ int32_t linux_HwReset(void *devHalCfg, uint8_t pinLevel)
 	}
 
 	halCfg = (adi_hal_Cfg_t *)devHalCfg;
-	hwResetCfg = &halCfg->hwResetCfg;
-
-	if (hwResetCfg == NULL)
-	{
-		return ADI_HAL_NULL_PTR;
-	}
 
 	gpiod_set_value(halCfg->reset_gpio, pinLevel);
 
