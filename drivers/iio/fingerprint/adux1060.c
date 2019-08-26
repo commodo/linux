@@ -157,7 +157,6 @@ static int adux1060_spi_read_ack(struct adux1060_state *st, char *buf)
 	reinit_completion(&st->completion);
 
 	gpiod_set_value(st->gpio_cs, 1);
-	usleep_range(250, 300);
 	ret = spi_sync_transfer(st->spi, t, ARRAY_SIZE(t));
 	gpiod_set_value(st->gpio_cs, 0);
 	if (ret < 0)
@@ -188,7 +187,6 @@ static int adux1060_preboot_spi_write(struct adux1060_state *st,
 	reinit_completion(&st->completion);
 
 	gpiod_set_value(st->gpio_cs, 1);
-	usleep_range(100, 250);
 	ret = spi_sync_transfer(st->spi, t, ARRAY_SIZE(t));
 	gpiod_set_value(st->gpio_cs, 0);
 	if (ret < 0)
@@ -198,8 +196,6 @@ static int adux1060_preboot_spi_write(struct adux1060_state *st,
 					  msecs_to_jiffies(100));
 	if (!ret)
 		return -ETIMEDOUT;
-
-	usleep_range(500, 1000);
 
 	/* Read the ack byte */
 	ret = adux1060_spi_read_ack(st, &buf);
@@ -222,7 +218,7 @@ static int adux1060_reset(struct adux1060_state *st)
 
 	if (st->gpio_reset) {
 		gpiod_set_value(st->gpio_reset, 1);
-		usleep_range(1000, 10000);
+		usleep_range(50000, 50001);
 		gpiod_set_value(st->gpio_reset, 0);
 	} else {
 		return -ENODEV;
