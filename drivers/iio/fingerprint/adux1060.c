@@ -68,8 +68,11 @@ struct adux1060_state {
 	struct gpio_desc *gpio_reset;
 	struct gpio_desc *gpio_cs;
 
-	u8 d8 ____cacheline_aligned;
-	__le32 d32;
+	union {
+		u8 d8;
+		__le32 d32;
+	} data ____cacheline_aligned;
+
 };
 
 struct adux1060_preboot {
@@ -138,7 +141,7 @@ static int adux1060_spi_reg_read(struct adux1060_state *st,
 			.tx_buf = (char *)&read,
 			.len = 68,
 		}, {
-			.rx_buf = &st->d32,
+			.rx_buf = &st->data.d32,
 			.len = len,
 		}
 	};
@@ -159,7 +162,7 @@ static int adux1060_spi_reg_read(struct adux1060_state *st,
 	ret = spi_sync_transfer(st->spi, t, ARRAY_SIZE(t));
 	gpiod_set_value(st->gpio_cs, 0);
 
-	*buf = le32_to_cpu(st->d32);
+	*buf = le32_to_cpu(st->data.d32);
 
 	return ret;
 }
@@ -173,7 +176,7 @@ static int adux1060_spi_reg_write(struct adux1060_state *st,
 			.tx_buf = (char *)&write,
 			.len = 68,
 		}, {
-			.tx_buf = &st->d32,
+			.tx_buf = &st->data.d32,
 			.len = 4,
 		}
 	};
@@ -189,7 +192,7 @@ static int adux1060_spi_reg_write(struct adux1060_state *st,
 	write.cmd2 = write.cmd1;
 	memset(write.reserved, 0, 58);
 
-	st->d32 = cpu_to_le32(val);
+	st->data.d32 = cpu_to_le32(val);
 
 	gpiod_set_value(st->gpio_cs, 1);
 	usleep_range(250, 300);
@@ -203,7 +206,7 @@ static int adux1060_spi_read_ack(struct adux1060_state *st, char *buf)
 {
 	struct spi_transfer t[] = {
 		{
-			.rx_buf = &st->d8,
+			.rx_buf = &st->data.d8,
 			.len = 1,
 		},
 	};
@@ -222,7 +225,7 @@ static int adux1060_spi_read_ack(struct adux1060_state *st, char *buf)
 	if (!ret)
 		return -ETIMEDOUT;
 
-	*buf = st->d8;
+	*buf = st->data.d8;
 
 	return 0;
 }
