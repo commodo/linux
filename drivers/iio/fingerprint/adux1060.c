@@ -91,6 +91,7 @@ struct adux1060_state {
 enum {
 	ADUX1060_CAPTURE_UNTOUCH,
 	ADUX1060_CAPTURE_TOUCH,
+	ADUX1060_EXC_FREQ,
 };
 
 enum adux1060_scan_type {
@@ -398,6 +399,44 @@ static int adux1060_init_scan(struct adux1060_state *st,
 	return 0;
 }
 
+static ssize_t adux1060_write(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t len)
+{
+	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
+	struct iio_dev_attr *this_attr = to_iio_dev_attr(attr);
+	struct adux1060_state *st = iio_priv(indio_dev);
+	unsigned int val;
+	int ret;
+
+	ret = kstrtou32(buf, 10, &val);
+	if (ret)
+		return ret;
+
+	mutex_lock(&st->lock);
+	switch ((u32)this_attr->address) {
+	case ADUX1060_EXC_FREQ:
+		ret = adux1060_spi_write_mask(st, ADUX1060_REG_AFE_CFG3,
+					      ADUX1060_TX_FREQ_MSK,
+					      ADUX1060_TX_FREQ(val));
+		if (ret < 0)
+			break;
+		/*
+		 * Set bit CFG_AFE in register AFE_CTRL[0]. When set,
+		 * AFE parameters from AFE_CFG1, AFE_CFG2_AFE_CFG3 are written
+		 * to ADUX1060 hw registers. This bit self clears after
+		 * configuration
+		 */
+		ret = adux1060_spi_reg_write(st, 0x01, ADUX1060_REG_AFE_CTRL);
+		break;
+	default:
+		ret = -ENODEV;
+	}
+	mutex_unlock(&st->lock);
+
+	return ret ? ret : len;
+}
+
 static ssize_t adux1060_read(struct device *dev,
 			     struct device_attribute *attr,
 			     char *buf)
@@ -416,6 +455,14 @@ static ssize_t adux1060_read(struct device *dev,
 	case ADUX1060_CAPTURE_TOUCH:
 		ret = adux1060_init_scan(st, ADUX1060_TOUCH_SCAN);
 		break;
+	case ADUX1060_EXC_FREQ:
+		ret = adux1060_spi_reg_read(st, &regval,
+					    ADUX1060_REG_AFE_CFG3, 4);
+		if (!ret)
+			ret = sprintf(buf, "%lu\n",
+				      (regval & ADUX1060_TX_FREQ_MSK));
+		break;
+
 	default:
 		ret = -EINVAL;
 	};
@@ -430,9 +477,13 @@ static IIO_DEVICE_ATTR(capture_untouch_scan, 0444,
 static IIO_DEVICE_ATTR(capture_touch_scan, 0444,
 		       adux1060_read, NULL, ADUX1060_CAPTURE_TOUCH);
 
+static IIO_DEVICE_ATTR(excitation_frequency, 0644,
+		       adux1060_read, adux1060_write, ADUX1060_EXC_FREQ);
+
 static struct attribute * adux1060_attributes[] = {
 	&iio_dev_attr_capture_untouch_scan.dev_attr.attr,
 	&iio_dev_attr_capture_touch_scan.dev_attr.attr,
+	&iio_dev_attr_excitation_frequency.dev_attr.attr,
 	NULL
 };
 
