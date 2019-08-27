@@ -17,8 +17,12 @@
 #include <linux/spi/spi.h>
 #include <linux/sysfs.h>
 
+#include <linux/iio/buffer.h>
 #include <linux/iio/iio.h>
 #include <linux/iio/sysfs.h>
+#include <linux/iio/trigger.h>
+#include <linux/iio/triggered_buffer.h>
+#include <linux/iio/trigger_consumer.h>
 
 #define ADUX1060_ACK_OK		0x41
 
@@ -67,6 +71,7 @@
 #define ADUX1060_READ_CMD	0xB0B0
 /* Write up to 512 registers (2048 bytes) of data */
 #define ADUX1060_WRITE_CMD	0xA0A0
+#define ADUX1060_GET_IMG_CMD	0xC0C0
 
 #define ADUX1060_TOTAL_NUM_OF_ROWS	120
 
@@ -81,9 +86,11 @@ struct adux1060_state {
 	struct completion completion;
 	struct gpio_desc *gpio_reset;
 	struct gpio_desc *gpio_cs;
+	struct iio_trigger *trig;
 
 	union {
 		u8 d8;
+		u8 buf[2];
 		__le32 d32;
 	} data ____cacheline_aligned;
 };
@@ -91,6 +98,7 @@ struct adux1060_state {
 enum {
 	ADUX1060_CAPTURE_UNTOUCH,
 	ADUX1060_CAPTURE_TOUCH,
+	ADUX1060_GET_IMAGE,
 	ADUX1060_EXC_FREQ,
 };
 
@@ -122,6 +130,13 @@ static const struct iio_chan_spec adux1060_channels[] = {
 		.type = IIO_VOLTAGE,
 		.indexed = 1,
 		.channel = 0,
+		.scan_index = 0,
+		.scan_type = {
+			.sign = 'u',
+			.realbits = 16,
+			.storagebits = 16,
+			.endianness = IIO_LE,
+		},
 	},
 };
 
@@ -337,6 +352,41 @@ static int adux1060_reset(struct adux1060_state *st)
 	return 0;
 }
 
+static int adux1060_get_img_data(struct iio_dev *indio_dev,
+				 struct adux1060_state *st)
+{
+	struct adux1060_postboot_cmd read;
+	int i, ret;
+
+	/*
+	 * A 68-byte read header consists of a 10-byte command
+	 * followed by 58 bytes of zeroes.
+	 */
+	read.cmd1 = cpu_to_le16(ADUX1060_GET_IMG_CMD);
+	read.n_regs = cpu_to_le16(1);
+	read.reg_addr = cpu_to_le32(0x00); /* Reg field is ignored */
+	read.cmd2 = read.cmd1;
+	memset(read.reserved, 0, 58);
+
+	gpiod_set_value(st->gpio_cs, 1);
+	usleep_range(250, 300);
+	spi_write(st->spi, (char *)&read, 68);
+	/*
+	 * The image data contains 120 * 120 = 14400 pixels
+	 * Each pixel is represented by two bytes of data
+	 */
+	for (i = 0; i < 14400; i++) {
+		ret = spi_read(st->spi, st->data.buf, 2);
+		if (ret < 0)
+			break;
+		if (iio_buffer_enabled(indio_dev))
+			iio_push_to_buffers(indio_dev, st->data.buf);
+	}
+
+	gpiod_set_value(st->gpio_cs, 0);
+
+	return ret;
+}
 
 static int adux1060_init_scan(struct adux1060_state *st,
 			      enum adux1060_scan_type scan)
@@ -604,6 +654,25 @@ static int adux1060_request_gpios(struct adux1060_state *st)
 	return 0;
 }
 
+static irqreturn_t adux1060_trigger_handler(int irq, void *p)
+{
+	struct iio_poll_func *pf = p;
+	struct iio_dev *indio_dev = pf->indio_dev;
+	struct adux1060_state *st = iio_priv(indio_dev);
+	int ret;
+
+	mutex_lock(&st->lock);
+	ret = adux1060_get_img_data(indio_dev, st);
+	if (ret < 0)
+		goto err_unlock;
+
+	iio_trigger_notify_done(indio_dev->trig);
+err_unlock:
+	mutex_unlock(&st->lock);
+
+	return IRQ_HANDLED;
+}
+
 static irqreturn_t adux1060_interrupt(int irq, void *dev_id)
 {
 	struct iio_dev *indio_dev = dev_id;
@@ -614,6 +683,22 @@ static irqreturn_t adux1060_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 };
 
+static int adux1060_buffer_postenable(struct iio_dev *indio_dev)
+{
+	struct adux1060_state *st = iio_priv(indio_dev);
+
+	iio_trigger_poll(st->trig);
+
+	return 0;
+}
+
+static const struct iio_buffer_setup_ops adux1060_buffer_ops = {
+	.postenable = &adux1060_buffer_postenable,
+};
+
+static const struct iio_trigger_ops adux1060_trigger_ops = {
+	.validate_device = iio_trigger_validate_own_device,
+};
 
 static int adux1060_setup(struct adux1060_state *st)
 {
@@ -651,17 +736,38 @@ static int adux1060_probe(struct spi_device *spi)
 	indio_dev->dev.parent = &spi->dev;
 	indio_dev->name = id->name;
 	indio_dev->info = &adux1060_info;
-	indio_dev->modes = INDIO_DIRECT_MODE;
+	indio_dev->modes = INDIO_DIRECT_MODE | INDIO_BUFFER_TRIGGERED;
 	indio_dev->channels = adux1060_channels;
 	indio_dev->num_channels = ARRAY_SIZE(adux1060_channels);
 
 	init_completion(&st->completion);
+
+	st->trig = devm_iio_trigger_alloc(&spi->dev, "%s-dev%d",
+					  indio_dev->name, indio_dev->id);
+	if (!st->trig)
+		return -ENOMEM;
+
+	st->trig->ops = &adux1060_trigger_ops;
+	st->trig->dev.parent = &spi->dev;
+	iio_trigger_set_drvdata(st->trig, indio_dev);
+	ret = devm_iio_trigger_register(&spi->dev, st->trig);
+	if (ret)
+		return ret;
+
+	indio_dev->trig = iio_trigger_get(st->trig);
 
 	ret = devm_request_irq(&st->spi->dev, spi->irq,
 			       &adux1060_interrupt,
 			       IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 			       id->name, indio_dev);
 	if (ret < 0)
+		return ret;
+
+	ret = devm_iio_triggered_buffer_setup(&spi->dev, indio_dev,
+					      &iio_pollfunc_store_time,
+					      &adux1060_trigger_handler,
+					      &adux1060_buffer_ops);
+	if (ret)
 		return ret;
 
 	ret = adux1060_request_gpios(st);
