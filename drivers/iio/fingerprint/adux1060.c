@@ -26,6 +26,31 @@
 #define ADUX1060_CMD_NORMAL	0x4E
 #define ADUX1060_CMD_END	0x45
 
+#define ADUX1060_REG_SW_STAT1		0x20000014
+#define ADUX1060_REG_AFE_CFG1		0x20000024
+#define ADUX1060_REG_AFE_CFG2		0x20000028
+#define ADUX1060_REG_AFE_CFG3		0x2000002C
+#define ADUX1060_REG_SCAN_CFG1		0x20000030
+#define ADUX1060_REG_SCAN_CFG2		0x20000034
+#define ADUX1060_REG_CAL_CFG1		0x20000038
+#define ADUX1060_REG_AFE_CTRL		0x20000048
+#define ADUX1060_REG_SCAN_CTRL		0x2000004C
+#define ADUX1060_REG_CAL_CTRL		0x20000050
+#define ADUX1060_REG_TX_CFG1		0x20000054
+#define ADUX1060_REG_TX_CFG2		0x20000058
+#define ADUX1060_REG_RX_CFG		0x2000005C
+#define ADUX1060_REG_INTG_CFG01		0x20000060
+#define ADUX1060_REG_INTG_CFG023	0x20000064
+#define ADUX1060_REG_CHAN_CTRL		0x20000068
+
+#define ADUX1060_REG_TOU_DET_CFG1	0x20000070
+#define ADUX1060_REG_TOU_DET_CFG2	0x20000074
+#define ADUX1060_REG_TOU_DET_CFG3	0x20000078
+#define ADUX1060_REG_TOU_DET_TX_FREQ	0x2000007C
+#define ADUX1060_REG_TOU_DET_SCAN_CTRL1	0x20000080
+#define ADUX1060_REG_TOU_DET_SCAN_CTRL2	0x20000084
+#define ADUX1060_REG_TOU_DET_W_INT_CTRL 0x20000088
+
 /* Read up to 14400 registers (57600 bytes) of data */
 #define ADUX1060_READ_CMD	0xB0B0
 /* Write up to 512 registers (2048 bytes) of data */
@@ -70,6 +95,36 @@ static const struct iio_chan_spec adux1060_channels[] = {
 		.indexed = 1,
 		.channel = 0,
 	},
+};
+
+struct adux1060_reg_seq {
+	u32 reg_addr;
+	u32 reg_val;
+};
+
+static const struct adux1060_reg_seq adux1060_reg_defaults[] = {
+	{ ADUX1060_REG_SCAN_CFG1,	   0x81000678 },
+	{ ADUX1060_REG_SCAN_CFG2,	   0x3C214000 },
+	{ ADUX1060_REG_SCAN_CTRL,	   0x00000001 },
+	{ ADUX1060_REG_AFE_CFG1,	   0x0C00211A },
+	{ ADUX1060_REG_AFE_CFG2,	   0x00000000 },
+	{ ADUX1060_REG_AFE_CFG3,	   0x0138D0A0 },
+	{ ADUX1060_REG_AFE_CTRL,	   0x00000001 },
+	{ ADUX1060_REG_CAL_CFG1,	   0x00205030 },
+	{ ADUX1060_REG_CAL_CTRL,	   0x00000008 },
+	{ ADUX1060_REG_TX_CFG1,		   0x32646464 },
+	{ ADUX1060_REG_TX_CFG2,		   0x21001200 },
+	{ ADUX1060_REG_RX_CFG,		   0x06780700 },
+	{ ADUX1060_REG_INTG_CFG01,	   0x18141713 },
+	{ ADUX1060_REG_INTG_CFG023,	   0x1A161915 },
+	{ ADUX1060_REG_CHAN_CTRL,	   0x00000005 },
+	{ ADUX1060_REG_TOU_DET_CFG1,	   0x1E020F64 },
+	{ ADUX1060_REG_TOU_DET_CFG2,	   0x013C4E20 },
+	{ ADUX1060_REG_TOU_DET_CFG3,	   0x08320006 },
+	{ ADUX1060_REG_TOU_DET_TX_FREQ,	   0x0121EAC0 },
+	{ ADUX1060_REG_TOU_DET_SCAN_CTRL1, 0x47321F0A },
+	{ ADUX1060_REG_TOU_DET_SCAN_CTRL2, 0x00006D5A },
+	{ ADUX1060_REG_TOU_DET_W_INT_CTRL, 0x0000130D },
 };
 
 static int adux1060_spi_reg_read(struct adux1060_state *st,
@@ -358,6 +413,24 @@ static irqreturn_t adux1060_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 };
 
+
+static int adux1060_setup(struct adux1060_state *st)
+{
+	unsigned int regval;
+	int i, ret;
+
+	for (i = 0; i < ARRAY_SIZE(adux1060_reg_defaults); i++) {
+		ret = adux1060_spi_reg_write(st,
+					     adux1060_reg_defaults[i].reg_val,
+					     adux1060_reg_defaults[i].reg_addr);
+		if (ret < 0)
+			return ret;
+	}
+
+	/* Dummy read clears the software status register */
+	return adux1060_spi_reg_read(st, &regval, ADUX1060_REG_SW_STAT1, 4);
+}
+
 static int adux1060_probe(struct spi_device *spi)
 {
 	const struct spi_device_id *id = spi_get_device_id(spi);
@@ -397,6 +470,12 @@ static int adux1060_probe(struct spi_device *spi)
 	ret = adux1060_load_firmware(st);
 	if (ret < 0) {
 		dev_err(&st->spi->dev, "Unable to load firmware\n");
+		return ret;
+	}
+
+	ret = adux1060_setup(st);
+	if (ret < 0) {
+		dev_err(&st->spi->dev, "ADUX1060 setup failed\n");
 		return ret;
 	}
 
