@@ -51,10 +51,24 @@
 #define ADUX1060_REG_TOU_DET_SCAN_CTRL2	0x20000084
 #define ADUX1060_REG_TOU_DET_W_INT_CTRL 0x20000088
 
+/* ADUX1060_REG_SCAN_CFG2 */
+#define ADUX1060_NUM_IMG_ROWS_MSK	GENMASK(31, 24)
+#define ADUX1060_NUM_IMG_ROWS(x)	FIELD_PREP(ADUX1060_NUM_IMG_ROWS_MSK, x)
+#define ADUX1060_UNTOU_IRQ_EN_MSK	BIT(22)
+#define ADUX1060_UNTOU_IRQ_EN(x)	FIELD_PREP(ADUX1060_UNTOU_IRQ_EN_MSK, x)
+#define ADUX1060_TOU_IRQ_EN_MSK		BIT(21)
+#define ADUX1060_TOU_IRQ_EN(x)		FIELD_PREP(ADUX1060_TOU_IRQ_EN_MSK, x)
+
+/* ADUX1060_REG_AFE_CFG3 */
+#define ADUX1060_TX_FREQ_MSK		GENMASK(24, 0)
+#define ADUX1060_TX_FREQ(x)		FIELD_PREP(ADUX1060_TX_FREQ_MSK, x)
+
 /* Read up to 14400 registers (57600 bytes) of data */
 #define ADUX1060_READ_CMD	0xB0B0
 /* Write up to 512 registers (2048 bytes) of data */
 #define ADUX1060_WRITE_CMD	0xA0A0
+
+#define ADUX1060_TOTAL_NUM_OF_ROWS	120
 
 struct adux1060_state {
 	struct spi_device *spi;
@@ -72,7 +86,17 @@ struct adux1060_state {
 		u8 d8;
 		__le32 d32;
 	} data ____cacheline_aligned;
+};
 
+enum {
+	ADUX1060_CAPTURE_UNTOUCH,
+	ADUX1060_CAPTURE_TOUCH,
+};
+
+enum adux1060_scan_type {
+	ADUX1060_TOUCH_SCAN = 0x03,
+	ADUX1060_UNTOUCH_SCAN = 0x05,
+	ADUX1060_TOUCH_DET_SCAN = 0x09,
 };
 
 struct adux1060_preboot {
@@ -202,6 +226,24 @@ static int adux1060_spi_reg_write(struct adux1060_state *st,
 	return ret;
 }
 
+static int adux1060_spi_write_mask(struct adux1060_state *st,
+				   unsigned int addr,
+				   unsigned long int mask,
+				   unsigned int val)
+{
+	unsigned int regval;
+	int ret;
+
+	ret = adux1060_spi_reg_read(st, &regval, addr, 4);
+	if (ret < 0)
+		return ret;
+
+	regval &= ~mask;
+	regval |= val;
+
+	return adux1060_spi_reg_write(st, regval, addr);
+}
+
 static int adux1060_spi_read_ack(struct adux1060_state *st, char *buf)
 {
 	struct spi_transfer t[] = {
@@ -294,6 +336,110 @@ static int adux1060_reset(struct adux1060_state *st)
 	return 0;
 }
 
+
+static int adux1060_init_scan(struct adux1060_state *st,
+			      enum adux1060_scan_type scan)
+{
+	unsigned int regval, num_int, num_rows;
+	unsigned long int mask;
+	int ret;
+
+	mask = ADUX1060_UNTOU_IRQ_EN_MSK | ADUX1060_TOU_IRQ_EN_MSK;
+	if (scan == ADUX1060_UNTOUCH_SCAN) {
+		/* Disable the touch irq and enable the untouch irq */
+		regval = ADUX1060_UNTOU_IRQ_EN(1) |
+			 ADUX1060_TOU_IRQ_EN(0);
+		/*
+		 * One interrupt is expected to signal the completion of the
+		 * untouch scan
+		 */
+		num_int = 1;
+	} else {
+		/* Disable the untouch irq and enable the touch irq */
+		regval = ADUX1060_UNTOU_IRQ_EN(0) |
+			 ADUX1060_TOU_IRQ_EN(1);
+		/*
+		 * After the completion of the scan of the number of rows set
+		 * in NUM_IMG_ROWS field, an interrupt will occur. Therefore,
+		 * the number of interrupts that we need to wait for in case of
+		 * a touch scan equals the number of total rows divided by the
+		 * number of image rows.
+		 */
+		ret = adux1060_spi_reg_read(st, &num_rows,
+					    ADUX1060_REG_SCAN_CFG2, 4);
+		if (ret < 0)
+			return ret;
+
+		num_rows = (num_rows & ADUX1060_NUM_IMG_ROWS_MSK) >> 24;
+		num_int = ADUX1060_TOTAL_NUM_OF_ROWS / num_rows;
+	}
+
+	ret = adux1060_spi_write_mask(st, ADUX1060_REG_SCAN_CFG2, mask, regval);
+	if (ret < 0)
+		return ret;
+	/*
+	 * Set bit CFG_SCAN in register SCAN_CTRL[0]. When set,
+	 * AFE parameters from SCAN_CFG_1 and SCAN_CFG2 are written
+	 * to ADUX1060 hw registers. This bit self clears after
+	 * configuration
+	 */
+	ret = adux1060_spi_reg_write(st, scan, ADUX1060_REG_SCAN_CTRL);
+	if (ret < 0)
+		return ret;
+
+	do {
+		reinit_completion(&st->completion);
+		ret = wait_for_completion_timeout(&st->completion,
+						  msecs_to_jiffies(1000));
+		if (!ret)
+			return -ETIMEDOUT;
+	} while (--num_int);
+
+	return 0;
+}
+
+static ssize_t adux1060_read(struct device *dev,
+			     struct device_attribute *attr,
+			     char *buf)
+{
+	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
+	struct adux1060_state *st = iio_priv(indio_dev);
+	struct iio_dev_attr *this_attr = to_iio_dev_attr(attr);
+	unsigned int regval;
+	int ret;
+
+	mutex_lock(&st->lock);
+	switch ((u32)this_attr->address) {
+	case ADUX1060_CAPTURE_UNTOUCH:
+		ret = adux1060_init_scan(st, ADUX1060_UNTOUCH_SCAN);
+		break;
+	case ADUX1060_CAPTURE_TOUCH:
+		ret = adux1060_init_scan(st, ADUX1060_TOUCH_SCAN);
+		break;
+	default:
+		ret = -EINVAL;
+	};
+	mutex_unlock(&st->lock);
+
+	return ret;
+}
+
+static IIO_DEVICE_ATTR(capture_untouch_scan, 0444,
+		       adux1060_read, NULL, ADUX1060_CAPTURE_UNTOUCH);
+
+static IIO_DEVICE_ATTR(capture_touch_scan, 0444,
+		       adux1060_read, NULL, ADUX1060_CAPTURE_TOUCH);
+
+static struct attribute * adux1060_attributes[] = {
+	&iio_dev_attr_capture_untouch_scan.dev_attr.attr,
+	&iio_dev_attr_capture_touch_scan.dev_attr.attr,
+	NULL
+};
+
+static const struct attribute_group adux1060_attribute_group = {
+	.attrs = adux1060_attributes,
+};
+
 static int adux1060_reg_access(struct iio_dev *indio_dev,
 			     unsigned int reg,
 			     unsigned int writeval,
@@ -315,6 +461,7 @@ static int adux1060_reg_access(struct iio_dev *indio_dev,
 
 static const struct iio_info adux1060_info = {
 	.debugfs_reg_access = &adux1060_reg_access,
+	.attrs = &adux1060_attribute_group,
 };
 
 static int adux1060_load_firmware(struct adux1060_state *st)
