@@ -790,7 +790,7 @@ static int adux1060_probe(struct spi_device *spi)
 }
 
 static const struct spi_device_id adux1060_id_table[] = {
-	{ "adi,adux1060" },
+	{ "adux1060", 0 },
 	{}
 };
 MODULE_DEVICE_TABLE(spi, adux1060_id_table);
