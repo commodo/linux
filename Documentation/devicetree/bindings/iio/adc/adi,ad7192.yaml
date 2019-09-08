@@ -43,13 +43,11 @@ properties:
 
   dvdd-supply:
     description: DVdd voltage supply
-    items:
-      - const: dvdd
+    maxItems: 1
 
   avdd-supply:
     description: AVdd voltage supply
-    items:
-      - const: avdd
+    maxItems: 1
 
   adi,rejection-60-Hz-enable:
     description: |
