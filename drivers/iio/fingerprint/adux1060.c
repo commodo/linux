@@ -85,12 +85,11 @@ struct adux1060_state {
 	struct mutex lock;
 	struct completion completion;
 	struct gpio_desc *gpio_reset;
-	struct gpio_desc *gpio_cs;
 	struct iio_trigger *trig;
 
 	union {
 		u8 d8;
-		u8 buf[2];
+		u8 buf[28800]; /* 14400 x 2 bytes per pixel */
 		__le32 d32;
 	} data ____cacheline_aligned;
 };
@@ -177,6 +176,9 @@ static int adux1060_spi_reg_read(struct adux1060_state *st,
 	struct adux1060_postboot_cmd read;
 	struct spi_transfer t[] = {
 		{
+			.delay = 250,
+		},
+		{
 			.tx_buf = (char *)&read,
 			.len = sizeof(read),
 		}, {
@@ -196,10 +198,7 @@ static int adux1060_spi_reg_read(struct adux1060_state *st,
 	read.cmd2 = read.cmd1;
 	memset(read.reserved, 0, 58);
 
-	gpiod_set_value(st->gpio_cs, 1);
-	usleep_range(250, 300);
 	ret = spi_sync_transfer(st->spi, t, ARRAY_SIZE(t));
-	gpiod_set_value(st->gpio_cs, 0);
 
 	*buf = le32_to_cpu(st->data.d32);
 
@@ -211,6 +210,9 @@ static int adux1060_spi_reg_write(struct adux1060_state *st,
 {
 	struct adux1060_postboot_cmd write;
 	struct spi_transfer t[] = {
+		{
+			.delay = 250,
+		},
 		{
 			.tx_buf = (char *)&write,
 			.len = sizeof(read),
@@ -233,12 +235,7 @@ static int adux1060_spi_reg_write(struct adux1060_state *st,
 
 	st->data.d32 = cpu_to_le32(val);
 
-	gpiod_set_value(st->gpio_cs, 1);
-	usleep_range(250, 300);
-	ret = spi_sync_transfer(st->spi, t, ARRAY_SIZE(t));
-	gpiod_set_value(st->gpio_cs, 0);
-
-	return ret;
+	return spi_sync_transfer(st->spi, t, ARRAY_SIZE(t));
 }
 
 static int adux1060_spi_write_mask(struct adux1060_state *st,
@@ -263,6 +260,9 @@ static int adux1060_spi_read_ack(struct adux1060_state *st, char *buf)
 {
 	struct spi_transfer t[] = {
 		{
+			.delay = 250,
+		},
+		{
 			.rx_buf = &st->data.d8,
 			.len = 1,
 		},
@@ -271,9 +271,7 @@ static int adux1060_spi_read_ack(struct adux1060_state *st, char *buf)
 
 	reinit_completion(&st->completion);
 
-	gpiod_set_value(st->gpio_cs, 1);
 	ret = spi_sync_transfer(st->spi, t, ARRAY_SIZE(t));
-	gpiod_set_value(st->gpio_cs, 0);
 	if (ret < 0)
 		return ret;
 
@@ -292,6 +290,9 @@ static int adux1060_preboot_spi_write(struct adux1060_state *st,
 {
 	struct spi_transfer t[] = {
 		{
+			.delay = 250,
+		},
+		{
 			.tx_buf = data,
 			.len = len,
 		},
@@ -301,9 +302,7 @@ static int adux1060_preboot_spi_write(struct adux1060_state *st,
 
 	reinit_completion(&st->completion);
 
-	gpiod_set_value(st->gpio_cs, 1);
 	ret = spi_sync_transfer(st->spi, t, ARRAY_SIZE(t));
-	gpiod_set_value(st->gpio_cs, 0);
 	if (ret < 0)
 		return ret;
 
@@ -355,6 +354,18 @@ static int adux1060_get_img_data(struct iio_dev *indio_dev,
 				 struct adux1060_state *st)
 {
 	struct adux1060_postboot_cmd read;
+	struct spi_transfer t[] = {
+		{
+			.delay = 250,
+		},
+		{
+			.tx_buf = (char *)&read,
+			.len = sizeof(read),
+		}, {
+			.rx_buf = &st->data.buf,
+			.len = sizeof(st->data.buf),
+		}
+	};
 	int i, ret;
 
 	/* No buffer mode enabled -> nothing to do */
@@ -371,23 +382,11 @@ static int adux1060_get_img_data(struct iio_dev *indio_dev,
 	read.cmd2 = read.cmd1;
 	memset(read.reserved, 0, 58);
 
-	gpiod_set_value(st->gpio_cs, 1);
-	usleep_range(250, 300);
-	spi_write(st->spi, (char *)&read, 68);
-	/*
-	 * The image data contains 120 * 120 = 14400 pixels
-	 * Each pixel is represented by two bytes of data
-	 */
-	for (i = 0; i < 14400; i++) {
-		ret = spi_read(st->spi, st->data.buf, 2);
-		if (ret < 0)
-			break;
-		iio_push_to_buffers(indio_dev, st->data.buf);
-	}
+	ret = spi_sync_transfer(st->spi, t, ARRAY_SIZE(t));
+	if (ret < 0)
+		return ret;
 
-	gpiod_set_value(st->gpio_cs, 0);
-
-	return ret;
+	return iio_push_to_buffers(indio_dev, st->data.buf);
 }
 
 static int adux1060_init_scan(struct adux1060_state *st,
@@ -648,10 +647,6 @@ static int adux1060_request_gpios(struct adux1060_state *st)
 	st->gpio_reset = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
 	if (IS_ERR(st->gpio_reset))
 		return PTR_ERR(st->gpio_reset);
-
-	st->gpio_cs = devm_gpiod_get(dev, "adi,cs", GPIOD_OUT_LOW);
-	if (IS_ERR(st->gpio_cs))
-		return PTR_ERR(st->gpio_cs);
 
 	return 0;
 }
