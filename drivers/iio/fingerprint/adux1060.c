@@ -178,7 +178,7 @@ static int adux1060_spi_reg_read(struct adux1060_state *st,
 	struct spi_transfer t[] = {
 		{
 			.tx_buf = (char *)&read,
-			.len = 68,
+			.len = sizeof(read),
 		}, {
 			.rx_buf = &st->data.d32,
 			.len = 4,
@@ -213,7 +213,7 @@ static int adux1060_spi_reg_write(struct adux1060_state *st,
 	struct spi_transfer t[] = {
 		{
 			.tx_buf = (char *)&write,
-			.len = 68,
+			.len = sizeof(read),
 		}, {
 			.tx_buf = &st->data.d32,
 			.len = 4,
