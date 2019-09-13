@@ -172,8 +172,7 @@ static const struct adux1060_reg_seq adux1060_reg_defaults[] = {
 
 static int adux1060_spi_reg_read(struct adux1060_state *st,
 				 unsigned int *buf,
-				 unsigned int addr,
-				 unsigned int len)
+				 unsigned int addr)
 {
 	struct adux1060_postboot_cmd read;
 	struct spi_transfer t[] = {
@@ -182,7 +181,7 @@ static int adux1060_spi_reg_read(struct adux1060_state *st,
 			.len = 68,
 		}, {
 			.rx_buf = &st->data.d32,
-			.len = len,
+			.len = 4,
 		}
 	};
 	int ret;
@@ -250,7 +249,7 @@ static int adux1060_spi_write_mask(struct adux1060_state *st,
 	unsigned int regval;
 	int ret;
 
-	ret = adux1060_spi_reg_read(st, &regval, addr, 4);
+	ret = adux1060_spi_reg_read(st, &regval, addr);
 	if (ret < 0)
 		return ret;
 
@@ -417,7 +416,7 @@ static int adux1060_init_scan(struct adux1060_state *st,
 		 * number of image rows.
 		 */
 		ret = adux1060_spi_reg_read(st, &num_rows,
-					    ADUX1060_REG_SCAN_CFG2, 4);
+					    ADUX1060_REG_SCAN_CFG2);
 		if (ret < 0)
 			return ret;
 
@@ -507,7 +506,7 @@ static ssize_t adux1060_read(struct device *dev,
 		break;
 	case ADUX1060_EXC_FREQ:
 		ret = adux1060_spi_reg_read(st, &regval,
-					    ADUX1060_REG_AFE_CFG3, 4);
+					    ADUX1060_REG_AFE_CFG3);
 		if (!ret)
 			ret = sprintf(buf, "%lu\n",
 				      (regval & ADUX1060_TX_FREQ_MSK));
@@ -552,7 +551,7 @@ static int adux1060_reg_access(struct iio_dev *indio_dev,
 
 	mutex_lock(&st->lock);
 	if (readval)
-		ret = adux1060_spi_reg_read(st, readval, reg, 4);
+		ret = adux1060_spi_reg_read(st, readval, reg);
 	else
 		ret = adux1060_spi_reg_write(st, writeval, reg);
 	mutex_unlock(&st->lock);
@@ -714,7 +713,7 @@ static int adux1060_setup(struct adux1060_state *st)
 	}
 
 	/* Dummy read clears the software status register */
-	return adux1060_spi_reg_read(st, &regval, ADUX1060_REG_SW_STAT1, 4);
+	return adux1060_spi_reg_read(st, &regval, ADUX1060_REG_SW_STAT1);
 }
 
 static int adux1060_probe(struct spi_device *spi)
