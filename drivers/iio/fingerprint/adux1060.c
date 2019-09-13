@@ -357,6 +357,10 @@ static int adux1060_get_img_data(struct iio_dev *indio_dev,
 	struct adux1060_postboot_cmd read;
 	int i, ret;
 
+	/* No buffer mode enabled -> nothing to do */
+	if (!iio_buffer_enabled(indio_dev))
+		return 0;
+
 	/*
 	 * A 68-byte read header consists of a 10-byte command
 	 * followed by 58 bytes of zeroes.
@@ -378,8 +382,7 @@ static int adux1060_get_img_data(struct iio_dev *indio_dev,
 		ret = spi_read(st->spi, st->data.buf, 2);
 		if (ret < 0)
 			break;
-		if (iio_buffer_enabled(indio_dev))
-			iio_push_to_buffers(indio_dev, st->data.buf);
+		iio_push_to_buffers(indio_dev, st->data.buf);
 	}
 
 	gpiod_set_value(st->gpio_cs, 0);
