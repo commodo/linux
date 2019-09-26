@@ -41,6 +41,7 @@ struct axiadc_state {
 	struct device 			*dev_spi;
 	struct iio_info			iio_info;
 	struct clk 			*clk;
+	struct gpio_desc		*gpio_decimation;
 	size_t				regs_size;
 	void __iomem			*regs;
 	void __iomem			*slave_regs;
@@ -54,11 +55,33 @@ struct axiadc_state {
 	bool				dp_disable;
 	unsigned long long		adc_clk;
 	unsigned			have_slave_channels;
+	bool				additional_channel;
 
 	struct iio_hw_consumer		*frontend;
 
 	struct iio_chan_spec		channels[AXIADC_MAX_CHANNEL];
 };
+
+struct axiadc_state *devm_iio_axiadc_state_alloc(struct device *)
+{
+	struct axiadc_state *st;
+
+	indio_dev = devm_iio_device_alloc(&pdev->dev, sizeof(*st));
+	if (indio_dev == NULL) {
+		ret = -ENOMEM;
+		goto err_put_converter;
+	}
+
+	st = iio_priv(indio_dev);
+
+	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	st->regs_size = resource_size(mem);
+	st->regs = devm_ioremap_resource(&pdev->dev, mem);
+	if (IS_ERR(st->regs))
+		return st->regs;
+
+	return st;
+}
 
 void axiadc_write(struct axiadc_state *st, unsigned reg, unsigned val)
 {
@@ -821,7 +844,7 @@ MODULE_DEVICE_TABLE(of, axiadc_of_match);
  * This function probes the AIM device in the device tree.
  * It initializes the driver data structure and the hardware.
  * It returns 0, if the driver is bound to the AIM device, or a negative
- * value if there is an error.
+ * value if there is axiadc_statean error.
  */
 static int axiadc_probe(struct platform_device *pdev)
 {
