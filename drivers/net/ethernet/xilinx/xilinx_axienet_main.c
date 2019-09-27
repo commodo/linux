@@ -2813,7 +2813,7 @@ static int axienet_probe(struct platform_device *pdev)
 	/* Retrieve the MAC address */
 	mac_addr = of_get_mac_address(pdev->dev.of_node);
 	if (!mac_addr)
-		dev_warn(dev, "No MAC address found, using random\n");
+		dev_warn(&pdev->dev, "No MAC address found, using random\n");
 	axienet_set_mac_address(ndev, mac_addr);
 
 	lp->coalesce_count_rx = XAXIDMA_DFT_RX_THRESHOLD;

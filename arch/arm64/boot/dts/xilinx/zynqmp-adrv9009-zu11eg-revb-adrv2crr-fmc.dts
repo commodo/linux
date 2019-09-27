@@ -8,6 +8,7 @@
 
 #include "zynqmp-adrv9009-zu11eg-reva-adrv2crr-fmc.dts"
 #include "zynqmp-adrv9009-zu11eg-revb.dtsi"
+#include "adi-zu11eg-sfp-base-r.dtsi"
 
 &dwc3_0 {
 	status = "okay";
