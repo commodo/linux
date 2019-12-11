@@ -1671,6 +1671,8 @@ static long iio_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	return -EINVAL;
 }
 
+static const struct iio_buffer_setup_ops noop_ring_setup_ops;
+
 static const struct file_operations iio_buffer_fileops = {
 	.read = iio_buffer_read_outer_addr,
 	.release = iio_chrdev_release,
@@ -1704,8 +1706,6 @@ static int iio_check_unique_scan_index(struct iio_dev *indio_dev)
 
 	return 0;
 }
-
-static const struct iio_buffer_setup_ops noop_ring_setup_ops;
 
 int __iio_device_register(struct iio_dev *indio_dev, struct module *this_mod)
 {
