@@ -37,13 +37,12 @@ branch_has_pull_request() {
 	fi
 	apt_install jq
 
-	echo_green "-----------------------------------------------"
-	echo_green $TRAVIS_COMMIT
-	echo_green "-----------------------------------------------"
 	for pr_url in $(get_pull_requests_urls) ; do
-	echo_green "----------------$pr_url--------------------------"
+		echo_green "----------------$pr_url--------------------------"
 		for sha in $(get_pull_request_commits_sha $pr_url) ; do
+			echo_green "'$sha' '$TRAVIS_COMMIT'"
 			if [ "$sha" = "$TRAVIS_COMMIT" ] ; then
+				echo_green "n;aaaaaaaaaaaaaaaaaa"
 				TRAVIS_OPEN_PR=$pr_url
 				export TRAVIS_OPEN_PR
 				return 0
