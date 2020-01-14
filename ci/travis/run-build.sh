@@ -21,6 +21,40 @@ apt_install() {
 	sudo apt-get install -y $@
 }
 
+get_pull_requests_urls() {
+	wget -q -O- https://api.github.com/repos/analogdevicesinc/linux/pulls | jq -r '.[].commits_url'
+}
+
+get_pull_request_commits_sha() {
+	wget -q -O- $1 | jq -r '.[].sha'
+}
+
+branch_has_pull_request() {
+	if [ "$TRAVIS_PULL_REQUEST" = "true" ] ; then
+		return 1
+	fi
+	apt_install jq
+
+	echo $TRAVIS_COMMIT
+	for pr_url in $(get_pull_requests_urls) ; do
+		for sha in $(get_pull_request_commits_sha $pr_url) ; do
+			if [ "$sha" = "$TRAVIS_COMMIT" ] ; then
+				TRAVIS_OPEN_PR=$pr_url
+				export TRAVIS_OPEN_PR
+				return 0
+			fi
+		done
+	done
+
+	return 1
+}
+
+# Exit early to save some build time
+if branch_has_pull_request ; then
+	echo_green "Not running build for branch; there is an open PR @ $TRAVIS_OPEN_PR"
+	exit 0
+fi
+
 if [ -z "$NUM_JOBS" ] ; then
 	NUM_JOBS=$(getconf _NPROCESSORS_ONLN)
 	NUM_JOBS=${NUM_JOBS:-1}
