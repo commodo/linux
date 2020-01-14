@@ -169,6 +169,8 @@ build_default() {
 
 build_checkpatch() {
 	apt_install python-ply
+       	#python3-pip libyaml-dev
+	#pip3 install git+https://github.com/devicetree-org/dt-schema.git@master
 	if [ -n "$TRAVIS_BRANCH" ]; then
 		__update_git_ref "${TRAVIS_BRANCH}" "${TRAVIS_BRANCH}"
 	fi
