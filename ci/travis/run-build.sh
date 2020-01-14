@@ -14,6 +14,8 @@ if [ -f "${FULL_BUILD_DIR}/env" ] ; then
 	. "${FULL_BUILD_DIR}/env"
 fi
 
+TRAVIS_REPO_SLUG=${TRAVIS_REPO_SLUG:-analogdevicesinc/linux}
+
 # Run once for the entire script
 sudo apt-get -qq update
 
@@ -22,7 +24,7 @@ apt_install() {
 }
 
 get_pull_requests_urls() {
-	wget -q -O- https://api.github.com/repos/analogdevicesinc/linux/pulls | jq -r '.[].commits_url'
+	wget -q -O- https://api.github.com/repos/${TRAVIS_REPO_SLUG}/pulls | jq -r '.[].commits_url'
 }
 
 get_pull_request_commits_sha() {
@@ -35,8 +37,11 @@ branch_has_pull_request() {
 	fi
 	apt_install jq
 
-	echo $TRAVIS_COMMIT
+	echo_green "-----------------------------------------------"
+	echo_green $TRAVIS_COMMIT
+	echo_green "-----------------------------------------------"
 	for pr_url in $(get_pull_requests_urls) ; do
+	echo_green "----------------$pr_url--------------------------"
 		for sha in $(get_pull_request_commits_sha $pr_url) ; do
 			if [ "$sha" = "$TRAVIS_COMMIT" ] ; then
 				TRAVIS_OPEN_PR=$pr_url
@@ -302,6 +307,7 @@ build_sync_branches_with_master_travis() {
 	[ -n "$TRAVIS_PULL_REQUEST" ] || return 0
 	[ "$TRAVIS_PULL_REQUEST" == "false" ] || return 0
 	[ "$TRAVIS_BRANCH" == "master" ] || return 0
+	[ "$TRAVIS_REPO_SLUG" == "analogdevicesinc/linux" ] || return 0
 
 	git remote set-url $ORIGIN "git@github.com:analogdevicesinc/linux.git"
 	openssl aes-256-cbc -d -in ci/travis/deploy_key.enc -out /tmp/deploy_key -base64 -K $encrypt_key -iv $encrypt_iv
