@@ -229,6 +229,76 @@ void iio_dmaengine_buffer_free(struct iio_buffer *buffer)
 }
 EXPORT_SYMBOL_GPL(iio_dmaengine_buffer_free);
 
+static void __devm_iio_dmaengine_buffer_free(struct device *dev, void *res)
+{
+	iio_dmaengine_buffer_free(*(struct iio_buffer **)res);
+}
+
+/**
+ * devm_iio_dmaengine_buffer_alloc() - Resource-managed iio_dmaengine_buffer_alloc()
+ * @dev: Parent device for the buffer
+ * @channel: DMA channel name, typically "rx".
+ *
+ * This allocates a new IIO buffer which internally uses the DMAengine framework
+ * to perform its transfers. The parent device will be used to request the DMA
+ * channel.
+ *
+ * Once done using the buffer iio_dmaengine_buffer_free() should be used to
+ * release it.
+ */
+struct iio_buffer *devm_iio_dmaengine_buffer_alloc(struct device *dev,
+	const char *channel)
+{
+	struct iio_buffer **bufferp, *buffer;
+
+	bufferp = devres_alloc(__devm_iio_dmaengine_buffer_free,
+			       sizeof(*bufferp), GFP_KERNEL);
+	if (!bufferp)
+		return ERR_PTR(-ENOMEM);
+
+	buffer = iio_dmaengine_buffer_alloc(dev, channel);
+	if (!IS_ERR(buffer)) {
+		*bufferp = buffer;
+		devres_add(dev, bufferp);
+	} else {
+		devres_free(bufferp);
+	}
+
+	return buffer;
+}
+EXPORT_SYMBOL_GPL(devm_iio_dmaengine_buffer_alloc);
+
+static int devm_iio_dmaengine_buffer_match(struct device *dev, void *res,
+	void *data)
+{
+	struct iio_buffer **r = res;
+
+	if (!r || !*r) {
+		WARN_ON(!r || !*r);
+		return 0;
+	}
+
+	return *r == data;
+}
+
+/**
+ * devm_iio_dmaengine_buffer_free - iio_dmaengine_buffer_free
+ * @dev: Device this iio_buffer belongs to
+ * @buffer: The iio_buffer associated with the device
+ *
+ * Free buffer allocated with devm_iio_dmaengine_buffer_alloc().
+ */
+void devm_iio_dmaengine_buffer_free(struct device *dev,
+	struct iio_buffer *buffer)
+{
+	int rc;
+
+	rc = devres_release(dev, __devm_iio_dmaengine_buffer_free,
+			    devm_iio_dmaengine_buffer_match, buffer);
+	WARN_ON(rc);
+}
+EXPORT_SYMBOL_GPL(devm_iio_dmaengine_buffer_free);
+
 MODULE_AUTHOR("Lars-Peter Clausen <lars@metafoo.de>");
 MODULE_DESCRIPTION("DMA buffer for the IIO framework");
 MODULE_LICENSE("GPL");
