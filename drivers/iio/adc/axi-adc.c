@@ -136,6 +136,8 @@
 #define   AXI_ADC_USR_DECIMATION_N_SET		AXI_ADC_LOWER16_SET
 #define   AXI_ADC_USR_DECIMATION_N_GET		AXI_ADC_LOWER16_GET
 
+#define AXI_ADC_REG_DELAY(l)			(0x0800 + (l) * 0x4)
+
 /* debugfs direct register access */
 #define DEBUGFS_DRA_PCORE_REG_MAGIC		BIT(31)
 
@@ -190,6 +192,152 @@ static unsigned int axi_adc_read(struct axi_adc_state *st, unsigned int reg)
 {
 	return ioread32(st->regs + reg);
 }
+
+static void axi_adc_set_bits(struct axi_adc_state *st, unsigned int reg,
+			     unsigned int msk)
+{
+	unsigned int val = axi_adc_read(st, reg);
+
+	val |= msk;
+	axi_adc_write(st, reg, val);
+}
+
+static void axi_adc_clr_bits(struct axi_adc_state *st,
+			     unsigned int reg,
+			     unsigned int msk)
+{
+	unsigned int val = axi_adc_read(st, reg);
+
+	val &= ~msk;
+	axi_adc_write(st, reg, val);
+}
+
+static void axi_adc_set_pnsel(struct axi_adc_state *st, int channel,
+			      enum axi_adc_pn_sel sel)
+{
+	axi_adc_clr_bits(st, AXI_ADC_REG_CHAN_CNTRL_3(channel),
+			 AXI_ADC_ADC_PN_SEL_MSK);
+
+	axi_adc_set_bits(st, AXI_ADC_REG_CHAN_CNTRL_3(channel),
+			 AXI_ADC_ADC_PN_SEL_SET(sel));
+}
+
+int axi_adc_lvds_idelay_calibrate(struct axi_adc_conv *conv)
+{
+	const struct axi_adc_chan_spec *chan;
+	struct axi_adc_client *cl;
+	struct axi_adc_state *st;
+	int ret, val, cnt, start, max_start, max_cnt;
+	unsigned int i, stat, inv_range = 0, do_inv, lane,
+		 max_val = 31, nb_lanes;
+	unsigned char errors[64];
+
+	cl = axi_adc_conv_to_client(conv);
+	if (!cl || !cl->state)
+		return -ENODEV;
+
+	if (!conv->pnsel_set)
+		return -ENOTSUPP;
+
+	st = cl->state;
+
+	nb_lanes = 0;
+	for (i = 0; i < conv->chip_info->num_channels; i++) {
+		chan = &conv->chip_info->channels[i];
+		axi_adc_clr_bits(st, AXI_ADC_REG_CHAN_CNTRL(i),
+				 AXI_ADC_ENABLE);
+		nb_lanes += chan->num_lanes;
+	}
+
+	do {
+		if (inv_range)
+			axi_adc_set_bits(st, AXI_ADC_REG_CNTRL,
+					 AXI_ADC_DDR_EDGESEL);
+		else
+			axi_adc_clr_bits(st, AXI_ADC_REG_CNTRL,
+					 AXI_ADC_DDR_EDGESEL);
+
+		for (i = 0; i < conv->chip_info->num_channels; i++) {
+			chan = &conv->chip_info->channels[i];
+
+			ret = conv->pnsel_set(conv, i, chan->pnsel);
+			if (ret)
+				return ret;
+
+			axi_adc_set_bits(st, AXI_ADC_REG_CHAN_CNTRL(i),
+					 AXI_ADC_ENABLE);
+			axi_adc_set_pnsel(st, i, chan->pnsel);
+			axi_adc_write(st, AXI_ADC_REG_CHAN_STATUS(i), ~0);
+		}
+
+		for (val = 0; val < max_val; val++) {
+			for (lane = 0; lane < nb_lanes; lane++)
+				axi_adc_write(st, AXI_ADC_REG_DELAY(lane), val);
+
+			for (i = 0; i < conv->chip_info->num_channels; i++)
+				axi_adc_write(st,
+					      AXI_ADC_REG_CHAN_STATUS(0), ~0);
+
+			mdelay(1);
+
+			stat = 0;
+			for (i = 0; i < conv->chip_info->num_channels; i++)
+				stat |= axi_adc_read(st,
+						AXI_ADC_REG_CHAN_STATUS(i));
+
+			stat = !!(stat & (AXI_ADC_PN_ERR | AXI_ADC_PN_OOS));
+			errors[val + (inv_range * (max_val + 1))] = stat;
+		}
+
+		for (val = 0, cnt = 0, max_cnt = 0, start = -1, max_start = 0;
+		     val <= (max_val + (inv_range * (max_val + 1))); val++) {
+			if (errors[val] == 0) {
+				if (start == -1)
+					start = val;
+				cnt++;
+			} else {
+				if (cnt > max_cnt) {
+					max_cnt = cnt;
+					max_start = start;
+				}
+				start = -1;
+				cnt = 0;
+			}
+		}
+
+		if (cnt > max_cnt) {
+			max_cnt = cnt;
+			max_start = start;
+		}
+
+		if ((inv_range == 0) &&
+		    ((max_cnt < 3) || (errors[max_val] == 0))) {
+			do_inv = 1;
+			inv_range = 1;
+		} else {
+			do_inv = 0;
+		}
+
+	} while (do_inv);
+
+	val = max_start + (max_cnt / 2);
+
+	if (val > max_val) {
+		val -= max_val + 1;
+		axi_adc_set_bits(st, AXI_ADC_REG_CNTRL, AXI_ADC_DDR_EDGESEL);
+	} else {
+		axi_adc_clr_bits(st, AXI_ADC_REG_CNTRL, AXI_ADC_DDR_EDGESEL);
+	}
+
+	for (i = 0; i < conv->chip_info->num_channels; i++)
+		conv->pnsel_set(conv, i, AXI_ADC_PN_OFF);
+
+	for (lane = 0; lane < nb_lanes; lane++)
+		axi_adc_write(st, AXI_ADC_REG_DELAY(lane), val);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(axi_adc_lvds_idelay_calibrate);
 
 static int axi_adc_chan_to_regoffset(struct iio_chan_spec const *chan)
 {

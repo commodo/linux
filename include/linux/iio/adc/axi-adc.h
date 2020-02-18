@@ -10,8 +10,20 @@
 
 struct device;
 
+enum axi_adc_pn_sel {
+	AXI_ADC_PN9 = 0,
+	AXI_ADC_PN23A = 1,
+	AXI_ADC_PN7 = 4,
+	AXI_ADC_PN15 = 5,
+	AXI_ADC_PN23 = 6,
+	AXI_ADC_PN31 = 7,
+	AXI_ADC_PN_CUSTOM = 9,
+	AXI_ADC_PN_OFF = 10,
+};
+
 struct axi_adc_chan_spec {
 	struct iio_chan_spec		iio_chan;
+	enum axi_adc_pn_sel		pnsel;
 	unsigned int			num_lanes;
 };
 
@@ -39,6 +51,8 @@ struct axi_adc_chip_info {
 struct axi_adc_conv {
 	const struct axi_adc_chip_info		*chip_info;
 
+	int (*pnsel_set)(struct axi_adc_conv *conv,
+			 int chan, enum axi_adc_pn_sel sel);
 	long long (*get_clk_rate)(struct axi_adc_conv *conv);
 	int (*preenable_setup)(struct axi_adc_conv *conv);
 	int (*reg_access)(struct axi_adc_conv *conv, unsigned int reg,
@@ -61,5 +75,7 @@ void devm_axi_adc_conv_unregister(struct device *dev,
 				  struct axi_adc_conv *conv);
 
 void *axi_adc_conv_priv(struct axi_adc_conv *conv);
+
+int axi_adc_lvds_idelay_calibrate(struct axi_adc_conv *conv);
 
 #endif
