@@ -1673,6 +1673,15 @@ static long iio_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 static const struct iio_buffer_setup_ops noop_ring_setup_ops;
 
+static const struct file_operations iio_buffer_none_fileops = {
+	.release = iio_chrdev_release,
+	.open = iio_chrdev_open,
+	.owner = THIS_MODULE,
+	.llseek = noop_llseek,
+	.unlocked_ioctl = iio_ioctl,
+	.compat_ioctl = compat_ptr_ioctl,
+};
+
 static const struct file_operations iio_buffer_fileops = {
 	.read = iio_buffer_read_outer_addr,
 	.release = iio_chrdev_release,
@@ -1709,6 +1718,7 @@ static int iio_check_unique_scan_index(struct iio_dev *indio_dev)
 
 int __iio_device_register(struct iio_dev *indio_dev, struct module *this_mod)
 {
+	const struct file_operations *fops;
 	int ret;
 
 	indio_dev->driver_module = this_mod;
@@ -1757,7 +1767,12 @@ int __iio_device_register(struct iio_dev *indio_dev, struct module *this_mod)
 		indio_dev->setup_ops == NULL)
 		indio_dev->setup_ops = &noop_ring_setup_ops;
 
-	cdev_init(&indio_dev->chrdev, &iio_buffer_fileops);
+	if (indio_dev->buffer)
+		fops = &iio_buffer_fileops;
+	else
+		fops = &iio_buffer_none_fileops;
+
+	cdev_init(&indio_dev->chrdev, fops);
 
 	indio_dev->chrdev.owner = this_mod;
 
