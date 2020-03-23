@@ -17,6 +17,7 @@
 #include <linux/slab.h>
 #include <linux/poll.h>
 #include <linux/sched/signal.h>
+#include <linux/mm.h>
 
 #include <linux/iio/iio.h>
 #include "iio_core.h"

@@ -63,9 +63,14 @@ static int iio_dmaengine_buffer_submit_block(struct iio_dma_buffer_queue *queue,
 	struct dma_async_tx_descriptor *desc;
 	dma_cookie_t cookie;
 
-	block->bytes_used = min(block->size, dmaengine_buffer->max_size);
-	block->bytes_used = rounddown(block->bytes_used,
-			dmaengine_buffer->align);
+	block->block.bytes_used = min(block->block.size,
+		dmaengine_buffer->max_size);
+	block->block.bytes_used = rounddown(block->block.bytes_used,
+		dmaengine_buffer->align);
+	if (block->block.bytes_used == 0) {
+		iio_dma_buffer_block_done(block);
+		return 0;
+	}
 
 	desc = dmaengine_prep_slave_single(dmaengine_buffer->chan,
 		block->phys_addr, block->bytes_used, DMA_DEV_TO_MEM,
@@ -116,6 +121,13 @@ static const struct iio_buffer_access_funcs iio_dmaengine_buffer_ops = {
 	.disable = iio_dma_buffer_disable,
 	.data_available = iio_dma_buffer_data_available,
 	.release = iio_dmaengine_buffer_release,
+
+	.alloc_blocks = iio_dma_buffer_alloc_blocks,
+	.free_blocks = iio_dma_buffer_free_blocks,
+	.query_block = iio_dma_buffer_query_block,
+	.enqueue_block = iio_dma_buffer_enqueue_block,
+	.dequeue_block = iio_dma_buffer_dequeue_block,
+	.mmap = iio_dma_buffer_mmap,
 
 	.modes = INDIO_BUFFER_HARDWARE,
 	.flags = INDIO_BUFFER_FLAG_FIXED_WATERMARK,
