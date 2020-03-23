@@ -75,6 +75,10 @@ struct iio_buffer_access_funcs {
 	int (*store_to)(struct iio_buffer *buffer, const void *data);
 	int (*read)(struct iio_buffer *buffer, size_t n, char __user *buf);
 	size_t (*data_available)(struct iio_buffer *buffer);
+	int (*remove_from)(struct iio_buffer *buffer, void *data);
+	int (*write)(struct iio_buffer *buffer, size_t n,
+		const char __user *buf);
+	size_t (*space_available)(struct iio_buffer *buffer);
 
 	int (*request_update)(struct iio_buffer *buffer);
 
@@ -167,6 +171,17 @@ struct iio_buffer {
 	/* @ref: Reference count of the buffer. */
 	struct kref ref;
 };
+
+static inline int iio_buffer_write(struct iio_buffer *buffer, size_t n,
+	const char __user *buf)
+{
+	return buffer->access->write(buffer, n, buf);
+}
+
+static inline int iio_buffer_remove_sample(struct iio_buffer *buffer, u8 *data)
+{
+	return buffer->access->remove_from(buffer, data);
+}
 
 /**
  * iio_update_buffers() - add or remove buffer from active list

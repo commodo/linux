@@ -157,6 +157,68 @@ ssize_t iio_buffer_read_outer(struct file *filp, char __user *buf,
 	return ret;
 }
 
+static size_t iio_buffer_space_available(struct iio_buffer *buf)
+{
+	if (buf->access->space_available)
+		return buf->access->space_available(buf);
+
+	return SIZE_MAX;
+}
+
+ssize_t iio_buffer_chrdev_write(struct file *filp, const char __user *buf,
+				      size_t n, loff_t *f_ps)
+{
+	struct iio_dev *indio_dev = filp->private_data;
+	struct iio_buffer *rb = indio_dev->buffer;
+	DEFINE_WAIT_FUNC(wait, woken_wake_function);
+	size_t datum_size;
+	size_t to_wait;
+	int ret;
+
+	if (!rb || !rb->access->write)
+		return -EINVAL;
+
+	datum_size = rb->bytes_per_datum;
+
+	/*
+	 * If datum_size is 0 there will never be anything to read from the
+	 * buffer, so signal end of file now.
+	 */
+	if (!datum_size)
+		return 0;
+
+	if (filp->f_flags & O_NONBLOCK)
+		to_wait = 0;
+	else
+		to_wait = min_t(size_t, n / datum_size, rb->watermark);
+
+	add_wait_queue(&rb->pollq, &wait);
+	do {
+		if (!indio_dev->info) {
+			ret = -ENODEV;
+			break;
+		}
+
+		if (iio_buffer_space_available(rb) < to_wait) {
+			if (signal_pending(current)) {
+				ret = -ERESTARTSYS;
+				break;
+			}
+
+			wait_woken(&wait, TASK_INTERRUPTIBLE,
+				   MAX_SCHEDULE_TIMEOUT);
+			continue;
+		}
+
+		ret = rb->access->write(rb, n, buf);
+		if (ret == 0 && (filp->f_flags & O_NONBLOCK))
+			ret = -EAGAIN;
+	} while (ret == 0);
+	remove_wait_queue(&rb->pollq, &wait);
+
+	return ret;
+}
+
 /**
  * iio_buffer_poll() - poll the buffer to find out if it has data
  * @filp:	File structure pointer for device access
@@ -176,8 +238,18 @@ __poll_t iio_buffer_poll(struct file *filp,
 		return 0;
 
 	poll_wait(filp, &rb->pollq, wait);
-	if (iio_buffer_ready(indio_dev, rb, rb->watermark, 0))
-		return EPOLLIN | EPOLLRDNORM;
+
+	switch (indio_dev->direction) {
+	case IIO_DEVICE_DIRECTION_IN:
+		if (iio_buffer_ready(indio_dev, rb, rb->watermark, 0))
+			return EPOLLIN | EPOLLRDNORM;
+		break;
+	case IIO_DEVICE_DIRECTION_OUT:
+		if (iio_buffer_space_available(rb))
+			return EPOLLOUT | EPOLLWRNORM;
+	}
+
+	/* need a way of knowing if there may be enough data... */
 	return 0;
 }
 
@@ -741,6 +813,9 @@ static int iio_verify_update(struct iio_dev *indio_dev,
 		return -EINVAL;
 	}
 
+	if (indio_dev->direction == IIO_DEVICE_DIRECTION_OUT)
+		strict_scanmask = true;
+
 	/* What scan mask do we actually have? */
 	compound_mask = bitmap_zalloc(indio_dev->masklength, GFP_KERNEL);
 	if (compound_mask == NULL)
@@ -921,7 +996,8 @@ static int iio_enable_buffers(struct iio_dev *indio_dev,
 	indio_dev->scan_timestamp = config->scan_timestamp;
 	indio_dev->scan_bytes = config->scan_bytes;
 
-	iio_update_demux(indio_dev);
+	if (indio_dev->direction == IIO_DEVICE_DIRECTION_IN)
+		iio_update_demux(indio_dev);
 
 	/* Wind up again */
 	if (indio_dev->setup_ops->preenable) {
@@ -1089,6 +1165,11 @@ int iio_update_buffers(struct iio_dev *indio_dev,
 
 	mutex_lock(&indio_dev->info_exist_lock);
 	mutex_lock(&indio_dev->mlock);
+
+	if (indio_dev->direction == IIO_DEVICE_DIRECTION_OUT) {
+		ret = -EINVAL;
+		goto out_unlock;
+	}
 
 	if (insert_buffer && iio_buffer_is_active(insert_buffer))
 		insert_buffer = NULL;
@@ -1608,8 +1689,16 @@ int iio_buffer_mmap(struct file *filep, struct vm_area_struct *vma)
 	if (!(vma->vm_flags & VM_SHARED))
 		return -EINVAL;
 
-	if (!(vma->vm_flags & VM_READ))
-		return -EINVAL;
+	switch (indio_dev->direction) {
+	case IIO_DEVICE_DIRECTION_IN:
+		if (!(vma->vm_flags & VM_READ))
+			return -EINVAL;
+		break;
+	case IIO_DEVICE_DIRECTION_OUT:
+		if (!(vma->vm_flags & VM_WRITE))
+			return -EINVAL;
+		break;
+	}
 
 	return indio_dev->buffer->access->mmap(indio_dev->buffer, vma);
 }

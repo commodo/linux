@@ -1690,6 +1690,7 @@ static const struct file_operations iio_buffer_none_fileops = {
 
 static const struct file_operations iio_buffer_fileops = {
 	.read = iio_buffer_read_outer_addr,
+	.write = iio_buffer_chrdev_write,
 	.release = iio_chrdev_release,
 	.open = iio_chrdev_open,
 	.poll = iio_buffer_poll_addr,
