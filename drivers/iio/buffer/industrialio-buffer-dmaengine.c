@@ -169,7 +169,8 @@ static const struct attribute *iio_dmaengine_buffer_attrs[] = {
  * release it.
  */
 struct iio_buffer *iio_dmaengine_buffer_alloc(struct device *dev,
-	const char *channel)
+	const char *channel, const struct iio_dma_buffer_ops *ops,
+	void *driver_data)
 {
 	struct dmaengine_buffer *dmaengine_buffer;
 	unsigned int width, src_width, dest_width;
@@ -208,7 +209,7 @@ struct iio_buffer *iio_dmaengine_buffer_alloc(struct device *dev,
 	dmaengine_buffer->max_size = dma_get_max_seg_size(chan->device->dev);
 
 	iio_dma_buffer_init(&dmaengine_buffer->queue, chan->device->dev,
-		&iio_dmaengine_default_ops);
+		ops ? ops : &iio_dmaengine_default_ops, driver_data);
 	iio_buffer_set_attrs(&dmaengine_buffer->queue.buffer,
 		iio_dmaengine_buffer_attrs);
 
