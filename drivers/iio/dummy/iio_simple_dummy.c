@@ -218,11 +218,13 @@ static const struct iio_chan_spec iio_dummy_channels[] = {
 			.shift = 0, /* zero shift */
 		},
 	},
+#ifdef CONFIG_IIO_SIMPLE_DUMMY_BUFFER_KFIFO
 	/*
 	 * Convenience macro for timestamps. 4 is the index in
 	 * the buffer.
 	 */
 	IIO_CHAN_SOFT_TIMESTAMP(4),
+#endif
 	/* DAC channel out_voltage0_raw */
 	{
 		.type = IIO_VOLTAGE,
@@ -518,6 +520,7 @@ static int iio_dummy_write_raw(struct iio_dev *indio_dev,
 static const struct iio_info iio_dummy_info = {
 	.read_raw = &iio_dummy_read_raw,
 	.write_raw = &iio_dummy_write_raw,
+	.update_scan_mode = iio_simple_dummy_update_scan_mode,
 #ifdef CONFIG_IIO_SIMPLE_DUMMY_EVENTS
 	.read_event_config = &iio_simple_dummy_read_event_config,
 	.write_event_config = &iio_simple_dummy_write_event_config,

@@ -123,4 +123,12 @@ void iio_simple_dummy_unconfigure_buffer(struct iio_dev *indio_dev)
 {}
 
 #endif /* CONFIG_IIO_SIMPLE_DUMMY_BUFFER */
+
+#ifdef CONFIG_IIO_SIMPLE_DUMMY_BUFFER_DMA
+int iio_simple_dummy_update_scan_mode(struct iio_dev *indio_dev,
+				      const unsigned long *scan_mask);
+#else
+#define iio_simple_dummy_update_scan_mode NULL
+#endif
+
 #endif /* _IIO_SIMPLE_DUMMY_H_ */

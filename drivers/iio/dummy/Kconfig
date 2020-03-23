@@ -37,8 +37,37 @@ config IIO_SIMPLE_DUMMY_BUFFER
 	help
 	  Add buffered data capture to the simple dummy driver.
 
-	  Buffer handling elements of industrial I/O reference driver.
-	  Uses the kfifo buffer.
+choice
+	prompt "Buffer type"
+	default IIO_SIMPLE_DUMMY_BUFFER_KFIFO
+	depends on IIO_SIMPLE_DUMMY_BUFFER
+	help
+	  Select the type of the buffer used by the simple dummy driver.
+	  Can either be KFIFO or DMA.
+
+config IIO_SIMPLE_DUMMY_BUFFER_KFIFO
+	bool "Triggered FIFO"
+	select IIO_TRIGGER
+	select IIO_KFIFO_BUF
+	help
+	  Triggered buffer utilizing a software FIFO where a software routine is
+	  responsible for transferring data between the converter and the FIFO.
+
+	  No real hardware is used for the dummy driver and the converter is
+	  emulated by software.
+
+config IIO_SIMPLE_DUMMY_BUFFER_DMA
+	bool "DMA"
+	depends on HAS_DMA
+	select IIO_BUFFER_DMA
+	help
+	  DMA buffer where a DMA controller is responsible for transferring data
+	  between the data and the buffers memory region.
+
+	  No real hardware is used for the dummy driver and the converter as well as
+	  the DMA controller are emulated by software.
+
+endchoice
 
 endif # IIO_SIMPLE_DUMMY
 
