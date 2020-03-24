@@ -55,15 +55,17 @@ static void iio_dmaengine_buffer_block_done(void *data)
 	iio_dma_buffer_block_done(block);
 }
 
-static int iio_dmaengine_buffer_submit_block(struct iio_dma_buffer_queue *queue,
-	struct iio_dma_buffer_block *block)
+int iio_dmaengine_buffer_submit_block(struct iio_dma_buffer_queue *queue,
+	struct iio_dma_buffer_block *block, int direction)
 {
 	struct dmaengine_buffer *dmaengine_buffer =
 		iio_buffer_to_dmaengine_buffer(&queue->buffer);
 	struct dma_async_tx_descriptor *desc;
 	dma_cookie_t cookie;
 
-	block->block.bytes_used = min(block->block.size,
+	if (direction == DMA_DEV_TO_MEM)
+		block->block.bytes_used = block->block.size;
+	block->block.bytes_used = min(block->block.bytes_used,
 		dmaengine_buffer->max_size);
 	block->block.bytes_used = rounddown(block->block.bytes_used,
 		dmaengine_buffer->align);
@@ -72,14 +74,22 @@ static int iio_dmaengine_buffer_submit_block(struct iio_dma_buffer_queue *queue,
 		return 0;
 	}
 
-	desc = dmaengine_prep_slave_single(dmaengine_buffer->chan,
-		block->phys_addr, block->bytes_used, DMA_DEV_TO_MEM,
-		DMA_PREP_INTERRUPT);
-	if (!desc)
-		return -ENOMEM;
+	if (block->block.flags & IIO_BUFFER_BLOCK_FLAG_CYCLIC) {
+		desc = dmaengine_prep_dma_cyclic(dmaengine_buffer->chan,
+			block->phys_addr, block->block.bytes_used,
+			block->block.bytes_used, direction, 0);
+		if (!desc)
+			return -ENOMEM;
+	} else {
+		desc = dmaengine_prep_slave_single(dmaengine_buffer->chan,
+			block->phys_addr, block->block.bytes_used, direction,
+			DMA_PREP_INTERRUPT);
+		if (!desc)
+			return -ENOMEM;
 
-	desc->callback = iio_dmaengine_buffer_block_done;
-	desc->callback_param = block;
+		desc->callback = iio_dmaengine_buffer_block_done;
+		desc->callback_param = block;
+	}
 
 	cookie = dmaengine_submit(desc);
 	if (dma_submit_error(cookie))
@@ -114,12 +124,14 @@ static void iio_dmaengine_buffer_release(struct iio_buffer *buf)
 
 static const struct iio_buffer_access_funcs iio_dmaengine_buffer_ops = {
 	.read = iio_dma_buffer_read,
+	.write = iio_dma_buffer_write,
 	.set_bytes_per_datum = iio_dma_buffer_set_bytes_per_datum,
 	.set_length = iio_dma_buffer_set_length,
 	.request_update = iio_dma_buffer_request_update,
 	.enable = iio_dma_buffer_enable,
 	.disable = iio_dma_buffer_disable,
 	.data_available = iio_dma_buffer_data_available,
+	.space_available = iio_dma_buffer_space_available,
 	.release = iio_dmaengine_buffer_release,
 
 	.alloc_blocks = iio_dma_buffer_alloc_blocks,

@@ -112,6 +112,8 @@ struct iio_dma_buffer_queue {
 
 	void *driver_data;
 
+	unsigned int poll_wakup_flags;
+
 	unsigned int num_blocks;
 	struct iio_dma_buffer_block **blocks;
 	unsigned int max_offset;
@@ -162,5 +164,8 @@ int iio_dma_buffer_dequeue_block(struct iio_buffer *buffer,
 	struct iio_buffer_block *block);
 int iio_dma_buffer_mmap(struct iio_buffer *buffer,
 	struct vm_area_struct *vma);
+int iio_dma_buffer_write(struct iio_buffer *buf, size_t n,
+	const char __user *user_buffer);
+size_t iio_dma_buffer_space_available(struct iio_buffer *buf);
 
 #endif
