@@ -70,9 +70,15 @@
 /**
  * struct ltc2945_state - driver instance specific data
  * @regmap:		regmap object to access device registers
+ * @max_power_uw:	maximum power that can be represented based on sense resistor
+ * @max_current_ma:	maximum current that can be represented based on sense resistor
+ * @r_sense_mohm:	current sense resistor value
  */
 struct ltc2945_state {
 	struct regmap		*regmap;
+	u32			max_power_uw;
+	u32			max_current_ma;
+	u32			r_sense_mohm;
 };
 
 static inline bool is_power_reg(u8 reg)
@@ -110,9 +116,8 @@ static long long ltc2945_reg_to_val(struct device *dev, u8 reg)
 	case LTC2945_MAX_POWER_THRES_H:
 	case LTC2945_MIN_POWER_THRES_H:
 		/*
-		 * Convert to uW by assuming current is measured with
-		 * an 1mOhm sense resistor, similar to current
-		 * measurements.
+		 * Convert to uW by and scale it with the configured
+		 * sense resistor, similar to current measurements.
 		 * Control register bit 0 selects if voltage at SENSE+/VDD
 		 * or voltage at ADIN is used to measure power.
 		 */
@@ -126,6 +131,7 @@ static long long ltc2945_reg_to_val(struct device *dev, u8 reg)
 			/* 0.5 mV * 25 uV = 0.0125 uV resolution. */
 			val = (val * 25LL) >> 1;
 		}
+		val /= st->r_sense_mohm;
 		break;
 	case LTC2945_VIN_H:
 	case LTC2945_MAX_VIN_H:
@@ -149,13 +155,11 @@ static long long ltc2945_reg_to_val(struct device *dev, u8 reg)
 	case LTC2945_MAX_SENSE_THRES_H:
 	case LTC2945_MIN_SENSE_THRES_H:
 		/*
-		 * 25 uV resolution. Convert to current as measured with
-		 * an 1 mOhm sense resistor, in mA. If a different sense
-		 * resistor is installed, calculate the actual current by
-		 * dividing the reported current by the sense resistor value
-		 * in mOhm.
+		 * 25 uV resolution. Convert to current and scale it
+		 * with the value of the sense resistor.
 		 */
 		val *= 25;
+		val /= st->r_sense_mohm;
 		break;
 	default:
 		return -EINVAL;
@@ -163,7 +167,8 @@ static long long ltc2945_reg_to_val(struct device *dev, u8 reg)
 	return val;
 }
 
-static unsigned long ltc2945_val_clamp(u8 reg, unsigned long val)
+static unsigned long ltc2945_val_clamp(struct ltc2945_state *st, u8 reg,
+				       unsigned long val)
 {
 	switch (reg) {
 	case LTC2945_POWER_H:
@@ -171,8 +176,7 @@ static unsigned long ltc2945_val_clamp(u8 reg, unsigned long val)
 	case LTC2945_MIN_POWER_H:
 	case LTC2945_MAX_POWER_THRES_H:
 	case LTC2945_MIN_POWER_THRES_H:
-		/* No sense in clamping now, LTC2945_POWER_FULL_SCALE_UW is larger than UINT32_MAX */
-		return val;
+		return clamp_val(val, 0, st->max_power_uw);
 	case LTC2945_VIN_H:
 	case LTC2945_MAX_VIN_H:
 	case LTC2945_MIN_VIN_H:
@@ -190,7 +194,7 @@ static unsigned long ltc2945_val_clamp(u8 reg, unsigned long val)
 	case LTC2945_MIN_SENSE_H:
 	case LTC2945_MAX_SENSE_THRES_H:
 	case LTC2945_MIN_SENSE_THRES_H:
-		return clamp_val(val, 0, LTC2945_SENSE_FULL_SCALE_MA);
+		return clamp_val(val, 0, st->max_current_ma);
 	default:
 		/*
 		 * This is unlikely to happen, and if it does, it should
@@ -215,9 +219,8 @@ static int ltc2945_val_to_reg(struct device *dev, u8 reg,
 	case LTC2945_MAX_POWER_THRES_H:
 	case LTC2945_MIN_POWER_THRES_H:
 		/*
-		 * Convert to register value by assuming current is measured
-		 * with an 1mOhm sense resistor, similar to current
-		 * measurements.
+		 * Convert to register value, scale it with the configured sense
+		 * resistor value, similar to current measurements.
 		 * Control register bit 0 selects if voltage at SENSE+/VDD
 		 * or voltage at ADIN is used to measure power, which in turn
 		 * determines register calculations.
@@ -236,6 +239,7 @@ static int ltc2945_val_to_reg(struct device *dev, u8 reg,
 			 */
 			val = DIV_ROUND_CLOSEST(val, 25) * 2;
 		}
+		val *= st->r_sense_mohm;
 		break;
 	case LTC2945_VIN_H:
 	case LTC2945_MAX_VIN_H:
@@ -259,12 +263,10 @@ static int ltc2945_val_to_reg(struct device *dev, u8 reg,
 	case LTC2945_MAX_SENSE_THRES_H:
 	case LTC2945_MIN_SENSE_THRES_H:
 		/*
-		 * 25 uV resolution. Convert to current as measured with
-		 * an 1 mOhm sense resistor, in mA. If a different sense
-		 * resistor is installed, calculate the actual current by
-		 * dividing the reported current by the sense resistor value
-		 * in mOhm.
+		 * 25 uV resolution. Convert to current and scale it
+		 * with the value of the sense resistor, in mA.
 		 */
+		val *= st->r_sense_mohm;
 		val = DIV_ROUND_CLOSEST(val, 25);
 		break;
 	default:
@@ -303,7 +305,7 @@ static ssize_t ltc2945_value_store(struct device *dev,
 	if (ret)
 		return ret;
 
-	val = ltc2945_val_clamp(reg, val);
+	val = ltc2945_val_clamp(st, reg, val);
 
 	/* convert to register value, then clamp and write result */
 	regval = ltc2945_val_to_reg(dev, reg, val);
@@ -512,6 +514,7 @@ static int ltc2945_probe(struct i2c_client *client)
 	struct ltc2945_state *st;
 	struct device *hwmon_dev;
 	struct regmap *regmap;
+	u64 val64;
 
 	st = devm_kzalloc(dev, sizeof(*st), GFP_KERNEL);
 	if (!st)
@@ -523,7 +526,22 @@ static int ltc2945_probe(struct i2c_client *client)
 		return PTR_ERR(regmap);
 	}
 
+	if (device_property_read_u32(dev, "shunt-resistor-micro-ohms",
+				     &st->r_sense_mohm))
+		st->r_sense_mohm = 1000;
+
+	if (st->r_sense_mohm < 1000) {
+		dev_err(dev, "Value too small for sense resistor, minimum 1000\n");
+		return -EINVAL;
+	}
+	st->r_sense_mohm /= 1000;
+
 	st->regmap = regmap;
+	val64 = LTC2945_POWER_FULL_SCALE_UW / st->r_sense_mohm;
+	/* clamp power to ULONG_MAX, since we represent it on 32 bits */
+	st->max_power_uw = clamp_val(val64, 0, ULONG_MAX);
+
+	st->max_current_ma = LTC2945_SENSE_FULL_SCALE_MA / st->r_sense_mohm;
 
 	/* Clear faults */
 	regmap_write(regmap, LTC2945_FAULT, 0x00);
