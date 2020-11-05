@@ -1,0 +1,16 @@
+name: Run the Linux checkpatch script
+
+on: [pull_request]
+
+jobs:
+  checkpatch:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_TYPE: checkpatch
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 50
+    - name: Run Linux's checkpatch script
+      run: ./ci/travis/run-build.sh
+
