@@ -58,6 +58,15 @@
 #define CONTROL_MULT_SELECT	(1 << 0)
 #define CONTROL_TEST_MODE	(1 << 4)
 
+/* Full scale ranges (page 4 of the datasheet) */
+
+#define LTC2945_VIN_FULL_SCALE_MV	102375
+#define LTC2945_ADIN_FULL_SCALE_MV	2048
+
+/* Power and current computed assuming a 1mOhm sense resistor */
+#define LTC2945_POWER_FULL_SCALE_UW	10485759375ULL
+#define LTC2945_SENSE_FULL_SCALE_MA	102375
+
 /**
  * struct ltc2945_state - driver instance specific data
  * @regmap:		regmap object to access device registers
@@ -152,6 +161,43 @@ static long long ltc2945_reg_to_val(struct device *dev, u8 reg)
 		return -EINVAL;
 	}
 	return val;
+}
+
+static unsigned long ltc2945_val_clamp(u8 reg, unsigned long val)
+{
+	switch (reg) {
+	case LTC2945_POWER_H:
+	case LTC2945_MAX_POWER_H:
+	case LTC2945_MIN_POWER_H:
+	case LTC2945_MAX_POWER_THRES_H:
+	case LTC2945_MIN_POWER_THRES_H:
+		/* No sense in clamping now, LTC2945_POWER_FULL_SCALE_UW is larger than UINT32_MAX */
+		return val;
+	case LTC2945_VIN_H:
+	case LTC2945_MAX_VIN_H:
+	case LTC2945_MIN_VIN_H:
+	case LTC2945_MAX_VIN_THRES_H:
+	case LTC2945_MIN_VIN_THRES_H:
+		return clamp_val(val, 0, LTC2945_VIN_FULL_SCALE_MV);
+	case LTC2945_ADIN_H:
+	case LTC2945_MAX_ADIN_H:
+	case LTC2945_MIN_ADIN_THRES_H:
+	case LTC2945_MAX_ADIN_THRES_H:
+	case LTC2945_MIN_ADIN_H:
+		return clamp_val(val, 0, LTC2945_ADIN_FULL_SCALE_MV);
+	case LTC2945_SENSE_H:
+	case LTC2945_MAX_SENSE_H:
+	case LTC2945_MIN_SENSE_H:
+	case LTC2945_MAX_SENSE_THRES_H:
+	case LTC2945_MIN_SENSE_THRES_H:
+		return clamp_val(val, 0, LTC2945_SENSE_FULL_SCALE_MA);
+	default:
+		/*
+		 * This is unlikely to happen, and if it does, it should
+		 * error out on the next call, we can't return negative here
+		 */
+		return 0;
+	}
 }
 
 static int ltc2945_val_to_reg(struct device *dev, u8 reg,
@@ -256,6 +302,8 @@ static ssize_t ltc2945_value_store(struct device *dev,
 	ret = kstrtoul(buf, 10, &val);
 	if (ret)
 		return ret;
+
+	val = ltc2945_val_clamp(reg, val);
 
 	/* convert to register value, then clamp and write result */
 	regval = ltc2945_val_to_reg(dev, reg, val);
