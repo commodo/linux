@@ -1072,8 +1072,8 @@ static int ci_hdrc_probe(struct platform_device *pdev)
 
 		/* No USB PHY was found in the end */
 		if (!ci->phy && !ci->usb_phy) {
-			ret = -ENXIO;
-			goto ulpi_exit;
+			//ret = -ENXIO;
+			//goto ulpi_exit;
 		}
 	}
 
