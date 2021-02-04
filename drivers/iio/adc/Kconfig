@@ -283,6 +283,19 @@ config ADI_AXI_ADC
 	  To compile this driver as a module, choose M here: the
 	  module will be called adi-axi-adc.
 
+config ADI_M2K_TRIGGER_ADC
+	tristate "Analog Devices AXI ADC trigger driver for ADALM-2000"
+	depends on HAS_IOMEM
+	help
+	  Say yes here to build support for Analog Devices AXI Trigger ADC IP
+	  core found on the ADALM-2000 board.
+
+	  Link: https://wiki.analog.com/university/tools/m2k
+	  If unsure, say N (but it's safe to say "Y").
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called adi-m2k-trigger-adc.
+
 config ASPEED_ADC
 	tristate "Aspeed ADC"
 	depends on ARCH_ASPEED || COMPILE_TEST
