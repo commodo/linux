@@ -11,6 +11,7 @@
 #include <linux/errno.h>
 #include <linux/device.h>
 #include <linux/i2c.h>
+#include <linux/gpio/consumer.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 #include <linux/slab.h>
@@ -44,6 +45,7 @@ static const char * const tas5720_supply_names[] = {
 struct tas5720_data {
 	struct snd_soc_component *component;
 	struct regmap *regmap;
+	struct gpio_desc *sdz_gpio;
 	struct i2c_client *tas5720_client;
 	enum tas572x_type devtype;
 	struct regulator_bulk_data supplies[TAS5720_NUM_SUPPLIES];
@@ -405,6 +407,9 @@ static int tas5720_dac_event(struct snd_soc_dapm_widget *w,
 
 	if (event & SND_SOC_DAPM_POST_PMU) {
 		/* Take TAS5720 out of shutdown mode */
+                if (tas5720->sdz_gpio)
+			gpiod_set_value_cansleep(tas5720->sdz_gpio, 1);
+
 		ret = snd_soc_component_update_bits(component, TAS5720_POWER_CTRL_REG,
 					  TAS5720_SDZ, TAS5720_SDZ);
 		if (ret < 0) {
@@ -438,6 +443,9 @@ static int tas5720_dac_event(struct snd_soc_dapm_widget *w,
 				ret);
 			return ret;
 		}
+
+                if (tas5720->sdz_gpio)
+			gpiod_set_value_cansleep(tas5720->sdz_gpio, 0);
 	}
 
 	return 0;
@@ -451,6 +459,9 @@ static int tas5720_suspend(struct snd_soc_component *component)
 
 	regcache_cache_only(tas5720->regmap, true);
 	regcache_mark_dirty(tas5720->regmap);
+
+	if (tas5720->sdz_gpio)
+		gpiod_set_value_cansleep(tas5720->sdz_gpio, 0);
 
 	ret = regulator_bulk_disable(ARRAY_SIZE(tas5720->supplies),
 				     tas5720->supplies);
@@ -471,6 +482,9 @@ static int tas5720_resume(struct snd_soc_component *component)
 		dev_err(component->dev, "failed to enable supplies: %d\n", ret);
 		return ret;
 	}
+
+	if (tas5720->sdz_gpio)
+		gpiod_set_value_cansleep(tas5720->sdz_gpio, 1);
 
 	regcache_cache_only(tas5720->regmap, false);
 
@@ -731,6 +745,14 @@ static int tas5720_probe(struct i2c_client *client)
 	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
+
+	data->sdz_gpio = devm_gpiod_get_optional(dev, "shutdown", GPIOD_OUT_HIGH);
+	if (IS_ERR(data->sdz_gpio)) {
+		if (PTR_ERR(data->sdz_gpio) == -EPROBE_DEFER)
+			return -EPROBE_DEFER;
+
+		data->sdz_gpio = NULL;
+	}
 
 	id = i2c_match_id(tas5720_id, client);
 	data->tas5720_client = client;
