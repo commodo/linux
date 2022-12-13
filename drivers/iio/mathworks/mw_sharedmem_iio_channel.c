@@ -268,23 +268,24 @@ static size_t mw_sharedmem_buffer_data_available(struct iio_buffer *buffer)
 	return size;
 }
 
-static bool mw_sharedmem_buffer_space_available(struct iio_buffer *buffer)
+static size_t mw_sharedmem_buffer_space_available(struct iio_buffer *buffer)
 {
 	struct mw_sharedmem_buffer *sharedmem_buff = buffer_to_mw_sharedmem_buffer(buffer);
 	struct mw_sharedmem_iio_chandev *mwchan = sharedmem_buff->mwchan;
-	bool space_available;
+	struct mw_sharedmem_region *region = mwchan->region;
+	size_t size;
 	
 	mutex_lock(&mwchan->lock);
 
 	if ((mwchan->ip_sync_mode == MW_SHAREDMEM_IP_SYNC_MODE_INTERRUPT) && (mwchan->irq > 0)) {
-		space_available = (mwchan->irq_count > 0);
+		size = mwchan->irq_count ? region->size : 0;
 	} else {
-		space_available = true;
+		size = region->size;
 	}
 	
 	mutex_unlock(&mwchan->lock);
 
-	return space_available;
+	return size;
 }
 
 static void mw_sharedmem_buffer_release(struct iio_buffer *buffer)
