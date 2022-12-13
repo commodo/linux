@@ -30,6 +30,7 @@ obj-y += humidity/
 obj-y += imu/
 obj-y += light/
 obj-y += magnetometer/
+obj-y += mathworks/
 obj-y += multiplexer/
 obj-y += orientation/
 obj-y += position/
