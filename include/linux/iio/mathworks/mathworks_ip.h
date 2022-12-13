@@ -23,7 +23,7 @@
 #include <linux/io.h>
 #include <linux/interrupt.h>
 #include <linux/uaccess.h>
-#include <linux/mathworks/mathworks_ip_ioctl.h>
+#include <linux/iio/mathworks/mathworks_ip_ioctl.h>
 
 #define MATHWORKS_IP_MAX_DEVTYPE 32
 #define	MATHWORKS_IP_DEVNAME_LEN 32

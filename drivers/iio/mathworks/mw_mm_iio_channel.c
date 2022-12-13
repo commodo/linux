@@ -13,7 +13,7 @@
 #include <linux/errno.h>
 
 #include <linux/string.h>
-#include <linux/mathworks/mathworks_ip.h>
+#include <linux/iio/mathworks/mathworks_ip.h>
 #include "mw_mm_iio_channel.h"
 #include "mathworks_ipcore.h"
 

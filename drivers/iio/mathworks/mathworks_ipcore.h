@@ -35,7 +35,7 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 
-#include <linux/mathworks/mathworks_ip.h>
+#include <linux/iio/mathworks/mathworks_ip.h>
 
 #define DRIVER_NAME "mwipcore"
 #define MAX_DEVICES 4

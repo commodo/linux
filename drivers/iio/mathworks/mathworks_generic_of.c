@@ -13,7 +13,7 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 
-#include <linux/mathworks/mathworks_ip.h>
+#include <linux/iio/mathworks/mathworks_ip.h>
 
 #define ip_to_pdev(x)  (container_of(x->dev, struct platform_device, dev))
 

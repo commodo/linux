@@ -18,7 +18,7 @@
 #include <linux/slab.h>
 #include <linux/time.h>
 
-#include <linux/mathworks/mathworks_ip.h>
+#include <linux/iio/mathworks/mathworks_ip.h>
 
 #define DRIVER_NAME "mathworks_ip"
 
