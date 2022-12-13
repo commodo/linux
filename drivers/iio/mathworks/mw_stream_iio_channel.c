@@ -36,7 +36,7 @@ static DEFINE_IDA(mw_stream_iio_channel_ida);
 }
 
 struct mw_stream_iio_channel_info {
-	enum iio_device_direction 		iio_direction;
+	enum iio_buffer_direction 		iio_direction;
 };
 
 enum mw_stream_iio_tlast_mode {
@@ -59,7 +59,7 @@ enum mw_stream_iio_reset_ip_mode {
 struct mw_stream_iio_chandev {
 	struct mathworks_ipcore_dev 			*mwdev;
 	struct device							dev;
-	enum iio_device_direction 				iio_direction;
+	enum iio_buffer_direction 				iio_direction;
 	const char								*dmaname;
 	enum mw_stream_iio_tlast_mode			tlast_mode;
 	enum mw_stream_iio_reset_tlast_mode		reset_tlast_mode;
@@ -79,7 +79,7 @@ static int mw_stream_iio_buffer_submit_block(struct iio_dma_buffer_queue *queue,
 	struct mw_stream_iio_chandev *mwchan = iio_priv(indio_dev);
 	int direction;
 
-	if(mwchan->iio_direction == IIO_DEVICE_DIRECTION_IN) {
+	if(mwchan->iio_direction == IIO_BUFFER_DIRECTION_IN) {
 		direction = DMA_FROM_DEVICE;
 	} else {
 		direction = DMA_TO_DEVICE;
@@ -427,7 +427,7 @@ static int mw_stream_setup_data_channels(struct iio_dev *indio_dev){
 		}
 		channel->indexed = 1;
 		channel->type = IIO_GENERIC_DATA;
-		if (mwchan->iio_direction == IIO_DEVICE_DIRECTION_OUT)
+		if (mwchan->iio_direction == IIO_BUFFER_DIRECTION_OUT)
 			channel->output = 1;
 		channel->channel = scan_index;
 		channel->scan_index = scan_index;
@@ -550,7 +550,7 @@ static struct iio_dev *devm_mw_stream_iio_alloc(
 		dev_err(IP2DEVP(mwdev), "Missing dma-names property for node: %s\n",node->name);
 		return ERR_PTR(status);
 	}
-	if (mwchan->iio_direction == IIO_DEVICE_DIRECTION_IN) {
+	if (mwchan->iio_direction == IIO_BUFFER_DIRECTION_IN) {
 		status = of_property_read_u32(node, "mathworks,sample-cnt-reg", &mwchan->tlast_cntr_addr);
 		if(status)
 			mwchan->tlast_cntr_addr = -EINVAL;
@@ -625,11 +625,11 @@ static int mw_stream_iio_channel_probe(
 }
 
 static struct mw_stream_iio_channel_info mw_stream_iio_mm2s_info = {
-	.iio_direction = IIO_DEVICE_DIRECTION_OUT,
+	.iio_direction = IIO_BUFFER_DIRECTION_OUT,
 };
 
 static struct mw_stream_iio_channel_info mw_stream_iio_s2mm_info = {
-	.iio_direction = IIO_DEVICE_DIRECTION_IN,
+	.iio_direction = IIO_BUFFER_DIRECTION_IN,
 };
 
 static const struct of_device_id mw_stream_iio_channel_of_match[] = {

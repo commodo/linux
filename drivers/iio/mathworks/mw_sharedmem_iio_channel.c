@@ -47,7 +47,7 @@ enum mw_sharedmem_iio_chan_type {
 };
 
 struct mw_sharedmem_iio_channel_info {
-	enum iio_device_direction iio_direction;
+	enum iio_buffer_direction iio_direction;
 };
 
 struct mw_sharedmem_region {
@@ -579,7 +579,7 @@ static int mw_sharedmem_setup_data_channel(struct iio_dev *indio_dev, struct iio
 
 	channel->indexed = 1;
 	channel->type = IIO_GENERIC_DATA;
-	if (indio_dev->direction == IIO_DEVICE_DIRECTION_OUT)
+	if (indio_dev->direction == IIO_BUFFER_DIRECTION_OUT)
 		channel->output = 1;
 	channel->channel = 0;
 	channel->scan_index = 0;
@@ -661,7 +661,7 @@ static void mw_sharedmem_iio_unregister(void *opaque) {
 	devres_release_group(dev, mw_sharedmem_iio_unregister);
 }
 
-static int devm_mw_sharedmem_iio_register(struct iio_dev *indio_dev, enum iio_device_direction direction) {
+static int devm_mw_sharedmem_iio_register(struct iio_dev *indio_dev, enum iio_buffer_direction direction) {
 	struct mw_sharedmem_iio_chandev *mwchan = iio_priv(indio_dev);
 	int status;
 
@@ -726,7 +726,7 @@ static void mw_sharedmem_iio_channel_release(struct device *dev)
 
 static struct iio_dev *devm_mw_sharedmem_iio_alloc(
 		struct mw_sharedmem_region_dev *mwregion,
-		enum iio_device_direction direction,
+		enum iio_buffer_direction direction,
 		struct device_node *node)		
 {
 	struct iio_dev *indio_dev;
@@ -748,7 +748,7 @@ static struct iio_dev *devm_mw_sharedmem_iio_alloc(
 	mwchan = iio_priv(indio_dev);
 	mwchan->mwdev = mwdev;
 	mwchan->mwregion = mwregion;
-	if (direction == IIO_DEVICE_DIRECTION_OUT) {
+	if (direction == IIO_BUFFER_DIRECTION_OUT) {
 		mwchan->type = MW_SHAREDMEM_CHAN_TYPE_WRITE;
 	} else {
 		mwchan->type = MW_SHAREDMEM_CHAN_TYPE_READ;
@@ -829,7 +829,7 @@ static struct iio_dev *devm_mw_sharedmem_iio_alloc(
 static int mw_sharedmem_iio_channel_probe(
 		struct mw_sharedmem_region_dev *mwregion,
 		struct device_node *node,
-		enum iio_device_direction direction)
+		enum iio_buffer_direction direction)
 {
 	int status;
 	struct iio_dev *indio_dev;
@@ -846,11 +846,11 @@ static int mw_sharedmem_iio_channel_probe(
 }
 
 static struct mw_sharedmem_iio_channel_info mw_sharedmem_iio_write_info = {
-	.iio_direction = IIO_DEVICE_DIRECTION_OUT,
+	.iio_direction = IIO_BUFFER_DIRECTION_OUT,
 };
 
 static struct mw_sharedmem_iio_channel_info mw_sharedmem_iio_read_info = {
-	.iio_direction = IIO_DEVICE_DIRECTION_IN,
+	.iio_direction = IIO_BUFFER_DIRECTION_IN,
 };
 
 static const struct of_device_id mw_sharedmem_iio_channel_of_match[] = {
