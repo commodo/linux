@@ -73,22 +73,6 @@ static void mw_stream_iio_chan_ida_remove(void *opaque){
 	ida_simple_remove(&mw_stream_iio_channel_ida, mwchan->dev.id);
 }
 
-static int mw_stream_iio_buffer_submit_block(struct iio_dma_buffer_queue *queue, struct iio_dma_buffer_block *block)
-{
-	struct iio_dev *indio_dev = queue->driver_data;
-	struct mw_stream_iio_chandev *mwchan = iio_priv(indio_dev);
-	int direction;
-
-	if(mwchan->iio_direction == IIO_BUFFER_DIRECTION_IN) {
-		direction = DMA_FROM_DEVICE;
-	} else {
-		direction = DMA_TO_DEVICE;
-	}
-
-	return iio_dmaengine_buffer_submit_block(queue, block, direction);
-}
-
-
 static int mw_stream_iio_buffer_preenable(struct iio_dev *indio_dev)
 {
 	struct mw_stream_iio_chandev *mwchan = iio_priv(indio_dev);
@@ -162,11 +146,6 @@ static const struct iio_buffer_setup_ops mw_stream_iio_buffer_setup_ops = {
 	.postenable = &mw_stream_iio_buffer_postenable,
 	.predisable = &mw_stream_iio_buffer_predisable,
 	.postdisable = &mw_stream_iio_buffer_postdisable,
-};
-
-static const struct iio_dma_buffer_ops mw_stream_iio_buffer_dma_buffer_ops = {
-	.submit = mw_stream_iio_buffer_submit_block,
-	.abort = iio_dmaengine_buffer_abort,
 };
 
 /*************
@@ -306,28 +285,22 @@ static int devm_mw_stream_configure_buffer(struct iio_dev *indio_dev)
 {
 	struct mw_stream_iio_chandev *mwchan = iio_priv(indio_dev);
 	struct iio_buffer *buffer;
-	int status;
+	int ret;
 
-	buffer = iio_dmaengine_buffer_alloc(indio_dev->dev.parent, mwchan->dmaname,
-			&mw_stream_iio_buffer_dma_buffer_ops, indio_dev);
-	if (IS_ERR(buffer)) {
-		if(PTR_ERR(buffer) == -EPROBE_DEFER)
+	ret = devm_iio_dmaengine_buffer_setup(indio_dev->dev.parent, indio_dev,
+					      mwchan->iio_direction, mwchan->dmaname,
+					      NULL, NULL);
+	if (ret) {
+		if(ret == -EPROBE_DEFER)
 			dev_info(&indio_dev->dev, "Deferring probe for DMA engine driver load\n");
 		else
-			dev_err(&indio_dev->dev, "Failed to allocate IIO DMA buffer: %ld\n", PTR_ERR(buffer));
-		return PTR_ERR(buffer);
-	}
-
-	status = devm_add_action(indio_dev->dev.parent,(devm_action_fn)iio_dmaengine_buffer_free, buffer);
-	if(status){
-		iio_dmaengine_buffer_free(buffer);
-		return status;
+			dev_err(&indio_dev->dev, "Failed to allocate IIO DMA buffer: %d\n", ret);
+		return ret;
 	}
 
 	iio_device_attach_buffer(indio_dev, buffer);
 
 	indio_dev->modes = INDIO_BUFFER_HARDWARE;
-	indio_dev->direction = mwchan->iio_direction;
 	indio_dev->setup_ops = &mw_stream_iio_buffer_setup_ops;
 
 	return 0;

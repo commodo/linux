@@ -572,14 +572,15 @@ static int mw_sharedmem_setup_ip_channel(struct iio_dev *indio_dev, struct iio_c
 	return 0;
 }
 
-static int mw_sharedmem_setup_data_channel(struct iio_dev *indio_dev, struct iio_chan_spec *channel) {
+static int mw_sharedmem_setup_data_channel(struct iio_dev *indio_dev, struct iio_chan_spec *channel,
+					  enum iio_buffer_direction direction) {
 	struct mw_sharedmem_iio_chandev *mwchan = iio_priv(indio_dev);
 	int status;
 	unsigned long *available_scan_masks;
 
 	channel->indexed = 1;
 	channel->type = IIO_GENERIC_DATA;
-	if (indio_dev->direction == IIO_BUFFER_DIRECTION_OUT)
+	if (direction == IIO_BUFFER_DIRECTION_OUT)
 		channel->output = 1;
 	channel->channel = 0;
 	channel->scan_index = 0;
@@ -671,14 +672,13 @@ static int devm_mw_sharedmem_iio_register(struct iio_dev *indio_dev, enum iio_bu
 	indio_dev->dev.parent = &mwchan->dev;
 	indio_dev->name = dev_name(&mwchan->dev);
 	indio_dev->info = &mw_sharedmem_iio_chandev_info;
-	indio_dev->direction = direction;
 	indio_dev->num_channels = 3; // data, offset, ip
 
 	indio_dev->channels = devm_kzalloc(&mwchan->dev, (indio_dev->num_channels) * sizeof(struct iio_chan_spec), GFP_KERNEL);
 	if(!indio_dev->channels)
 		return -ENOMEM;
 	
-	status = mw_sharedmem_setup_data_channel(indio_dev, (struct iio_chan_spec *)&indio_dev->channels[0]);
+	status = mw_sharedmem_setup_data_channel(indio_dev, (struct iio_chan_spec *)&indio_dev->channels[0], direction);
 	if(status)
 		return status;
 
