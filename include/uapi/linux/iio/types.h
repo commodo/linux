@@ -47,6 +47,7 @@ enum iio_chan_type {
 	IIO_POSITIONRELATIVE,
 	IIO_PHASE,
 	IIO_MASSCONCENTRATION,
+	IIO_GENERIC_DATA = 256, /* this should be the same for a while */
 };
 
 enum iio_modifier {
