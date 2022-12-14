@@ -46,10 +46,10 @@ struct iio_buffer_block {
 };
 
 #define IIO_BUFFER_GET_FD_IOCTL			_IOWR('i', 0x91, int)
-#define IIO_BUFFER_BLOCK_ALLOC_IOCTL		_IOWR('i', 0x92, struct iio_buffer_block_alloc_req)
-#define IIO_BUFFER_BLOCK_FREE_IOCTL		_IO('i',   0x93)
-#define IIO_BUFFER_BLOCK_QUERY_IOCTL		_IOWR('i', 0x93, struct iio_buffer_block)
-#define IIO_BUFFER_BLOCK_ENQUEUE_IOCTL		_IOWR('i', 0x94, struct iio_buffer_block)
-#define IIO_BUFFER_BLOCK_DEQUEUE_IOCTL		_IOWR('i', 0x95, struct iio_buffer_block)
+#define IIO_BUFFER_BLOCK_ALLOC_IOCTL		_IOWR('i', 0xa0, struct iio_buffer_block_alloc_req)
+#define IIO_BUFFER_BLOCK_FREE_IOCTL		_IO('i',   0xa1)
+#define IIO_BUFFER_BLOCK_QUERY_IOCTL		_IOWR('i', 0xa2, struct iio_buffer_block)
+#define IIO_BUFFER_BLOCK_ENQUEUE_IOCTL		_IOWR('i', 0xa3, struct iio_buffer_block)
+#define IIO_BUFFER_BLOCK_DEQUEUE_IOCTL		_IOWR('i', 0xa4, struct iio_buffer_block)
 
 #endif /* _UAPI_IIO_BUFFER_H_ */
