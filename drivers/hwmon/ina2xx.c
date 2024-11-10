@@ -213,7 +213,7 @@ static const struct ina2xx_config ina2xx_config[] = {
  * table 3 AVG bit settings, found at
  * https://www.ti.com/lit/ds/symlink/ina226.pdf.
  */
-static const int ina226_avg_tab[] = { 1, 4, 16, 64, 128, 256, 512, 1024 };
+static const s32 ina226_avg_tab[] = { 1, 4, 16, 64, 128, 256, 512, 1024 };
 
 static int ina226_reg_to_interval(u16 config)
 {
