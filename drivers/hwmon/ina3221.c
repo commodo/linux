@@ -178,12 +178,12 @@ static inline int ina3221_summation_shunt_resistor(struct ina3221_data *ina)
 }
 
 /* Lookup table for Bus and Shunt conversion times in usec */
-static const u16 ina3221_conv_time[] = {
+static const s32 ina3221_conv_time[] = {
 	140, 204, 332, 588, 1100, 2116, 4156, 8244,
 };
 
 /* Lookup table for number of samples using in averaging mode */
-static const int ina3221_avg_samples[] = {
+static const s32 ina3221_avg_samples[] = {
 	1, 4, 16, 64, 128, 256, 512, 1024,
 };
 
