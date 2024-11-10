@@ -283,7 +283,7 @@ static int ina2xx_read_raw(struct iio_dev *indio_dev,
  * table 3 AVG bit settings, found at
  * https://www.ti.com/lit/ds/symlink/ina226.pdf.
  */
-static const int ina226_avg_tab[] = { 1, 4, 16, 64, 128, 256, 512, 1024 };
+static const s32 ina226_avg_tab[] = { 1, 4, 16, 64, 128, 256, 512, 1024 };
 
 static int ina226_set_average(struct ina2xx_chip_info *chip, unsigned int val,
 			      unsigned int *config)
@@ -305,7 +305,7 @@ static int ina226_set_average(struct ina2xx_chip_info *chip, unsigned int val,
 }
 
 /* Conversion times in uS */
-static const int ina226_conv_time_tab[] = { 140, 204, 332, 588, 1100,
+static const s32 ina226_conv_time_tab[] = { 140, 204, 332, 588, 1100,
 					    2116, 4156, 8244 };
 
 static int ina226_set_int_time_vbus(struct ina2xx_chip_info *chip,
@@ -347,8 +347,8 @@ static int ina226_set_int_time_vshunt(struct ina2xx_chip_info *chip,
 }
 
 /* Conversion times in uS. */
-static const int ina219_conv_time_tab_subsample[] = { 84, 148, 276, 532 };
-static const int ina219_conv_time_tab_average[] = { 532, 1060, 2130, 4260,
+static const s32 ina219_conv_time_tab_subsample[] = { 84, 148, 276, 532 };
+static const s32 ina219_conv_time_tab_average[] = { 532, 1060, 2130, 4260,
 						    8510, 17020, 34050, 68100};
 
 static int ina219_lookup_int_time(unsigned int *val_us, int *bits)
@@ -424,7 +424,7 @@ static int ina219_set_vbus_range_denom(struct ina2xx_chip_info *chip,
 	return 0;
 }
 
-static const int ina219_vshunt_gain_tab[] = { 125, 250, 500, 1000 };
+static const s32 ina219_vshunt_gain_tab[] = { 125, 250, 500, 1000 };
 static const int ina219_vshunt_gain_frac[] = {
 	125, 1000, 250, 1000, 500, 1000, 1000, 1000 };
 
