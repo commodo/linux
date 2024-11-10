@@ -551,7 +551,7 @@ static ssize_t temp_store(struct device *dev, struct device_attribute *attr,
 }
 
 /* Assuming CONFIG6[SLOW] is 0 */
-static const int ad7475_st_map[] = {
+static const s32 ad7475_st_map[] = {
 	37500, 18800, 12500, 7500, 4700, 3100, 1600, 800,
 };
 
@@ -636,7 +636,7 @@ static ssize_t temp_st_store(struct device *dev,
  * Table of autorange values - the user will write the value in millidegrees,
  * and we'll convert it
  */
-static const int autorange_table[] = {
+static const s32 autorange_table[] = {
 	2000, 2500, 3330, 4000, 5000, 6670, 8000,
 	10000, 13330, 16000, 20000, 26670, 32000, 40000,
 	53330, 80000
@@ -974,7 +974,7 @@ static ssize_t pwmctrl_store(struct device *dev,
 }
 
 /* List of frequencies for the PWM */
-static const int pwmfreq_table[] = {
+static const s32 pwmfreq_table[] = {
 	11, 14, 22, 29, 35, 44, 58, 88, 22500
 };
 
