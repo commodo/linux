@@ -67,7 +67,7 @@ static const unsigned short normal_i2c[] = {
  * However we are not going to complicate things too much and we stick to the
  * approx value in mS.
  */
-static const int stts751_intervals[] = {
+static const s32 stts751_intervals[] = {
 	16000, 8000, 4000, 2000, 1000, 500, 250, 125, 63, 31
 };
 
