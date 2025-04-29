@@ -178,7 +178,7 @@ static inline int ina3221_summation_shunt_resistor(struct ina3221_data *ina)
 }
 
 /* Lookup table for Bus and Shunt conversion times in usec */
-static const u16 ina3221_conv_time[] = {
+static const int ina3221_conv_time[] = {
 	140, 204, 332, 588, 1100, 2116, 4156, 8244,
 };
 
@@ -192,7 +192,7 @@ static inline u32 ina3221_interval_ms_to_conv_time(u16 config, int interval)
 {
 	u32 channels = hweight16(config & INA3221_CONFIG_CHs_EN_MASK);
 	u32 samples_idx = INA3221_CONFIG_AVG(config);
-	u32 samples = ina3221_avg_samples[samples_idx];
+	int samples = ina3221_avg_samples[samples_idx];
 
 	/* Bisect the result to Bus and Shunt conversion times */
 	return DIV_ROUND_CLOSEST(interval * 1000 / 2, channels * samples);
@@ -204,8 +204,8 @@ static inline u32 ina3221_reg_to_interval_us(u16 config)
 	u32 channels = hweight16(config & INA3221_CONFIG_CHs_EN_MASK);
 	u32 vbus_ct_idx = INA3221_CONFIG_VBUS_CT(config);
 	u32 vsh_ct_idx = INA3221_CONFIG_VSH_CT(config);
-	u32 vbus_ct = ina3221_conv_time[vbus_ct_idx];
-	u32 vsh_ct = ina3221_conv_time[vsh_ct_idx];
+	int vbus_ct = ina3221_conv_time[vbus_ct_idx];
+	int vsh_ct = ina3221_conv_time[vsh_ct_idx];
 
 	/* Calculate total conversion time */
 	return channels * (vbus_ct + vsh_ct);
