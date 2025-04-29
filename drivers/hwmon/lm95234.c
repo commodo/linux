@@ -240,7 +240,7 @@ static int lm95234_temp_read(struct device *dev, u32 attr, int channel, long *va
 	return 0;
 }
 
-static u16 update_intervals[] = { 143, 364, 1000, 2500 };
+static int update_intervals[] = { 143, 364, 1000, 2500 };
 
 static int lm95234_chip_write(struct device *dev, u32 attr, long val)
 {
