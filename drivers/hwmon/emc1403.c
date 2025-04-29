@@ -517,7 +517,7 @@ static int emc1403_temp_write(struct thermal_data *data, u32 attr, int channel, 
 }
 
 /* Lookup table for temperature conversion times in msec */
-static const u16 ina3221_conv_time[] = {
+static const int ina3221_conv_time[] = {
 	16000, 8000, 4000, 2000, 1000, 500, 250, 125, 62, 31, 16
 };
 
