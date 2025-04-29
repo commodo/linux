@@ -273,7 +273,7 @@ static inline s8 temp_to_reg(long val, s8 min, s8 max)
 	return clamp_val(val / 1000, min, max);
 }
 
-static const u16 pwm_freq_cksel0[16] = {
+static const int pwm_freq_cksel0[16] = {
 	1024, 512, 341, 256, 205, 171, 146, 128,
 	85, 64, 32, 16, 8, 4, 2, 1
 };
