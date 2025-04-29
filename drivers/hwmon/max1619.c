@@ -103,7 +103,7 @@ static int max1619_temp_read(struct regmap *regmap, u32 attr, int channel, long 
 	return 0;
 }
 
-static u16 update_intervals[] = { 16000, 8000, 4000, 2000, 1000, 500, 250, 125 };
+static int update_intervals[] = { 16000, 8000, 4000, 2000, 1000, 500, 250, 125 };
 
 static int max1619_chip_read(struct regmap *regmap, u32 attr, long *val)
 {
