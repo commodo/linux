@@ -173,7 +173,7 @@ static int ltc4282_set_rate(struct clk_hw *hw,
  * Note the 15HZ conversion rate assumes 12bit ADC which is what we are
  * supporting for now.
  */
-static const unsigned int ltc4282_out_rates[] = {
+static const int ltc4282_out_rates[] = {
 	LTC4282_CLKOUT_CNV, LTC4282_CLKOUT_SYSTEM
 };
 
