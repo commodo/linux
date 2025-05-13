@@ -253,7 +253,7 @@ enum mcp3564_oversampling {
 	MCP3564_OVERSAMPLING_RATIO_98304
 };
 
-static const unsigned int mcp3564_oversampling_avail[] = {
+static const int mcp3564_oversampling_avail[] = {
 	[MCP3564_OVERSAMPLING_RATIO_32] = 32,
 	[MCP3564_OVERSAMPLING_RATIO_64] = 64,
 	[MCP3564_OVERSAMPLING_RATIO_128] = 128,
