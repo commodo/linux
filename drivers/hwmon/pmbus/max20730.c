@@ -436,7 +436,7 @@ static long direct_to_val(u16 w, enum pmbus_sensor_classes class,
 	return d;
 }
 
-static u32 max_current[][5] = {
+static int max_current[][5] = {
 	[max20710] = { 6200, 8000, 9700, 11600 },
 	[max20730] = { 13000, 16600, 20100, 23600 },
 	[max20734] = { 21000, 27000, 32000, 38000 },
@@ -449,7 +449,7 @@ static int max20730_read_word_data(struct i2c_client *client, int page,
 	const struct pmbus_driver_info *info = pmbus_get_driver_info(client);
 	const struct max20730_data *data = to_max20730_data(info);
 	int ret = 0;
-	u32 max_c;
+	int max_c;
 
 	switch (reg) {
 	case PMBUS_OT_FAULT_LIMIT:
