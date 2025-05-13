@@ -81,11 +81,11 @@ static const unsigned int ad7609_hw_scale_avail[2][2] = {
 	{ 0, 152588 }, { 0, 305176 }
 };
 
-static const unsigned int ad7606_oversampling_avail[7] = {
+static const int ad7606_oversampling_avail[7] = {
 	1, 2, 4, 8, 16, 32, 64,
 };
 
-static const unsigned int ad7616_oversampling_avail[8] = {
+static const int ad7616_oversampling_avail[8] = {
 	1, 2, 4, 8, 16, 32, 64, 128,
 };
 
@@ -835,7 +835,7 @@ static int ad7606_write_raw(struct iio_dev *indio_dev,
 			    long mask)
 {
 	struct ad7606_state *st = iio_priv(indio_dev);
-	unsigned int scale_avail_uv[AD760X_MAX_SCALES];
+	int scale_avail_uv[AD760X_MAX_SCALES];
 	struct ad7606_chan_scale *cs;
 	int i, ret, ch = 0;
 
@@ -884,7 +884,7 @@ static ssize_t ad7606_oversampling_ratio_avail(struct device *dev,
 {
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
 	struct ad7606_state *st = iio_priv(indio_dev);
-	const unsigned int *vals = st->oversampling_avail;
+	const int *vals = st->oversampling_avail;
 	unsigned int i;
 	size_t len = 0;
 
