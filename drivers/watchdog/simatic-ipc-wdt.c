@@ -59,7 +59,7 @@ static struct resource io_resource_trigger =
 static struct resource mem_resource =
 	DEFINE_RES_MEM_NAMED(0, 0, "WD_RESET_BASE_ADR");
 
-static u32 wd_timeout_table[] = {2, 4, 6, 8, 16, 32, 48, 64 };
+static int wd_timeout_table[] = {2, 4, 6, 8, 16, 32, 48, 64 };
 static void __iomem *wd_reset_base_addr;
 
 static int wd_start(struct watchdog_device *wdd)
