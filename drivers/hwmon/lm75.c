@@ -89,9 +89,9 @@ struct lm75_params {
 	u8			default_resolution;
 	u8			resolution_limits;
 	const u8		*resolutions;
-	unsigned int		default_sample_time;
+	int			default_sample_time;
 	u8			num_sample_times;
-	const unsigned int	*sample_times;
+	const int		*sample_times;
 	bool			alarm;
 };
 
@@ -110,7 +110,7 @@ struct lm75_data {
 	struct regmap			*regmap;
 	u16				orig_conf;
 	u8				resolution;	/* In bits, 9 to 16 */
-	unsigned int			sample_time;	/* In ms */
+	int				sample_time;	/* In ms */
 	enum lm75_type			kind;
 	const struct lm75_params	*params;
 	u8				reg_buf[1];
@@ -139,7 +139,7 @@ static const struct lm75_params device_params[] = {
 		.default_resolution = 12,
 		.default_sample_time = 125,
 		.num_sample_times = 4,
-		.sample_times = (unsigned int []){ 125, 250, 1000, 4000 },
+		.sample_times = (int []){ 125, 250, 1000, 4000 },
 		.alarm = true,
 	},
 	[at30ts74] = {
@@ -147,7 +147,7 @@ static const struct lm75_params device_params[] = {
 		.default_resolution = 12,
 		.default_sample_time = 200,
 		.num_sample_times = 4,
-		.sample_times = (unsigned int []){ 25, 50, 100, 200 },
+		.sample_times = (int []){ 25, 50, 100, 200 },
 		.resolutions = (u8 []) {9, 10, 11, 12 },
 	},
 	[ds1775] = {
@@ -156,7 +156,7 @@ static const struct lm75_params device_params[] = {
 		.default_resolution = 11,
 		.default_sample_time = 500,
 		.num_sample_times = 4,
-		.sample_times = (unsigned int []){ 125, 250, 500, 1000 },
+		.sample_times = (int []){ 125, 250, 500, 1000 },
 		.resolutions = (u8 []) {9, 10, 11, 12 },
 	},
 	[ds75] = {
@@ -165,7 +165,7 @@ static const struct lm75_params device_params[] = {
 		.default_resolution = 11,
 		.default_sample_time = 600,
 		.num_sample_times = 4,
-		.sample_times = (unsigned int []){ 150, 300, 600, 1200 },
+		.sample_times = (int []){ 150, 300, 600, 1200 },
 		.resolutions = (u8 []) {9, 10, 11, 12 },
 	},
 	[stds75] = {
@@ -174,7 +174,7 @@ static const struct lm75_params device_params[] = {
 		.default_resolution = 11,
 		.default_sample_time = 600,
 		.num_sample_times = 4,
-		.sample_times = (unsigned int []){ 150, 300, 600, 1200 },
+		.sample_times = (int []){ 150, 300, 600, 1200 },
 		.resolutions = (u8 []) {9, 10, 11, 12 },
 	},
 	[stlm75] = {
@@ -186,7 +186,7 @@ static const struct lm75_params device_params[] = {
 		.default_resolution = 12,
 		.default_sample_time = 200,
 		.num_sample_times = 4,
-		.sample_times = (unsigned int []){ 25, 50, 100, 200 },
+		.sample_times = (int []){ 25, 50, 100, 200 },
 		.resolutions = (u8 []) {9, 10, 11, 12 },
 	},
 	[g751] = {
@@ -227,13 +227,13 @@ static const struct lm75_params device_params[] = {
 		.default_resolution = 12,
 		.default_sample_time = 55,
 		.num_sample_times = 4,
-		.sample_times = (unsigned int []){ 28, 55, 110, 220 },
+		.sample_times = (int []){ 28, 55, 110, 220 },
 	},
 	[pct2075] = {
 		.default_resolution = 11,
 		.default_sample_time = MSEC_PER_SEC / 10,
 		.num_sample_times = 31,
-		.sample_times = (unsigned int []){ 100, 200, 300, 400, 500, 600,
+		.sample_times = (int []){ 100, 200, 300, 400, 500, 600,
 		700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700,
 		1800, 1900, 2000, 2100, 2200, 2300, 2400, 2500, 2600, 2700,
 		2800, 2900, 3000, 3100 },
@@ -245,7 +245,7 @@ static const struct lm75_params device_params[] = {
 		.resolution_limits = 9,
 		.default_sample_time = 240,
 		.num_sample_times = 4,
-		.sample_times = (unsigned int []){ 30, 60, 120, 240 },
+		.sample_times = (int []){ 30, 60, 120, 240 },
 		.resolutions = (u8 []) {9, 10, 11, 12 },
 	},
 	[tmp100] = {
@@ -254,7 +254,7 @@ static const struct lm75_params device_params[] = {
 		.default_resolution = 12,
 		.default_sample_time = 320,
 		.num_sample_times = 4,
-		.sample_times = (unsigned int []){ 40, 80, 160, 320 },
+		.sample_times = (int []){ 40, 80, 160, 320 },
 		.resolutions = (u8 []) {9, 10, 11, 12 },
 	},
 	[tmp101] = {
@@ -263,7 +263,7 @@ static const struct lm75_params device_params[] = {
 		.default_resolution = 12,
 		.default_sample_time = 320,
 		.num_sample_times = 4,
-		.sample_times = (unsigned int []){ 40, 80, 160, 320 },
+		.sample_times = (int []){ 40, 80, 160, 320 },
 		.resolutions = (u8 []) {9, 10, 11, 12 },
 	},
 	[tmp105] = {
@@ -272,7 +272,7 @@ static const struct lm75_params device_params[] = {
 		.default_resolution = 12,
 		.default_sample_time = 220,
 		.num_sample_times = 4,
-		.sample_times = (unsigned int []){ 28, 55, 110, 220 },
+		.sample_times = (int []){ 28, 55, 110, 220 },
 		.resolutions = (u8 []) {9, 10, 11, 12 },
 	},
 	[tmp112] = {
@@ -282,7 +282,7 @@ static const struct lm75_params device_params[] = {
 		.default_resolution = 12,
 		.default_sample_time = 125,
 		.num_sample_times = 4,
-		.sample_times = (unsigned int []){ 125, 250, 1000, 4000 },
+		.sample_times = (int []){ 125, 250, 1000, 4000 },
 		.alarm = true,
 	},
 	[tmp175] = {
@@ -291,7 +291,7 @@ static const struct lm75_params device_params[] = {
 		.default_resolution = 12,
 		.default_sample_time = 220,
 		.num_sample_times = 4,
-		.sample_times = (unsigned int []){ 28, 55, 110, 220 },
+		.sample_times = (int []){ 28, 55, 110, 220 },
 		.resolutions = (u8 []) {9, 10, 11, 12 },
 	},
 	[tmp275] = {
@@ -300,7 +300,7 @@ static const struct lm75_params device_params[] = {
 		.default_resolution = 12,
 		.default_sample_time = 220,
 		.num_sample_times = 4,
-		.sample_times = (unsigned int []){ 28, 55, 110, 220 },
+		.sample_times = (int []){ 28, 55, 110, 220 },
 		.resolutions = (u8 []) {9, 10, 11, 12 },
 	},
 	[tmp75] = {
@@ -309,14 +309,14 @@ static const struct lm75_params device_params[] = {
 		.default_resolution = 12,
 		.default_sample_time = 220,
 		.num_sample_times = 4,
-		.sample_times = (unsigned int []){ 28, 55, 110, 220 },
+		.sample_times = (int []){ 28, 55, 110, 220 },
 		.resolutions = (u8 []) {9, 10, 11, 12 },
 	},
 	[tmp75b] = { /* not one-shot mode, Conversion rate 37Hz */
 		.clr_mask = 1 << 7 | 3 << 5,
 		.default_resolution = 12,
 		.default_sample_time = MSEC_PER_SEC / 37,
-		.sample_times = (unsigned int []){ MSEC_PER_SEC / 37,
+		.sample_times = (int []){ MSEC_PER_SEC / 37,
 			MSEC_PER_SEC / 18,
 			MSEC_PER_SEC / 9, MSEC_PER_SEC / 4 },
 		.num_sample_times = 4,
@@ -331,7 +331,7 @@ static const struct lm75_params device_params[] = {
 		.default_resolution = 12,
 		.default_sample_time = 28,
 		.num_sample_times = 4,
-		.sample_times = (unsigned int []){ 28, 55, 110, 220 },
+		.sample_times = (int []){ 28, 55, 110, 220 },
 	}
 };
 
