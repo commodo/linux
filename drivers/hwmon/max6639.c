@@ -63,7 +63,7 @@ static const unsigned short normal_i2c[] = { 0x2c, 0x2e, 0x2f, I2C_CLIENT_END };
 static const int rpm_ranges[] = { 2000, 4000, 8000, 16000 };
 
 /* Supported PWM frequency */
-static const unsigned int freq_table[] = { 20, 33, 50, 100, 5000, 8333, 12500,
+static const int freq_table[] = { 20, 33, 50, 100, 5000, 8333, 12500,
 					   25000 };
 
 #define FAN_FROM_REG(val, rpm_range)	((val) == 0 || (val) == 255 ? \
