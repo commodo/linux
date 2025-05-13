@@ -289,7 +289,7 @@ static struct linear_range max77857_lin_ranges[] = {
 	REGULATOR_LINEAR_RANGE(4485000, 0x3D, 0xCC, 73500)
 };
 
-static const unsigned int max77857_switch_freq[] = {
+static const int max77857_switch_freq[] = {
 	1200000, 1500000, 1800000, 2100000
 };
 
