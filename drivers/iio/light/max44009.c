@@ -55,7 +55,7 @@
 /* The fixed-point fractional multiplier for de-scaling threshold values */
 #define MAX44009_FRACT_MULT 1000000
 
-static const u32 max44009_int_time_ns_array[] = {
+static const int max44009_int_time_ns_array[] = {
 	800000000,
 	400000000,
 	200000000,
