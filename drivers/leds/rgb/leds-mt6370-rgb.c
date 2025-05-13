@@ -135,7 +135,7 @@ struct mt6370_led {
 };
 
 struct mt6370_pdata {
-	const unsigned int *tfreq;
+	const int *tfreq;
 	unsigned int tfreq_len;
 	u16 reg_rgb1_tr;
 	s16 reg_rgb_chrind_tr;
@@ -212,11 +212,11 @@ static const struct linear_range mt6372_led_ranges[R_MAX_RANGES] = {
 	[R_LED_TOFF]	= { 250, 0, 15, 500 },
 };
 
-static const unsigned int common_tfreqs[] = {
+static const int common_tfreqs[] = {
 	10000, 5000, 2000, 1000, 500, 200, 5, 1,
 };
 
-static const unsigned int mt6372_tfreqs[] = {
+static const int mt6372_tfreqs[] = {
 	8000, 4000, 2000, 1000, 500, 250, 8, 4,
 };
 
@@ -304,7 +304,8 @@ static int mt6370_set_led_freq(struct mt6370_priv *priv, unsigned int led_no, un
 	const struct mt6370_pdata *pdata = priv->pdata;
 	enum mt6370_led_field sel_field;
 	unsigned int tfreq_len = pdata->tfreq_len;
-	unsigned int tsum, sel;
+	unsigned int sel;
+	int tsum;
 
 	tsum = ton + toff;
 
